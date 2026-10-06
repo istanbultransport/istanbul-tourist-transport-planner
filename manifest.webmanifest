@@ -1,7 +1,7 @@
 {
   "name": "Istanbul Tourist Transport Planner",
   "short_name": "Istanbul Transit",
-  "description": "Turistler için İstanbul'da toplu taşıma ve son ulaşım adımlarını sade şekilde gösteren rehber.",
+  "description": "Tourists için İstanbul'da toplu taşıma ve son ulaşım adımlarını sade şekilde gösteren rehber.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
