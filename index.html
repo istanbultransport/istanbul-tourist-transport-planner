@@ -1,8 +1,29 @@
-<!-- V223-E FINAL: V222 clean baseline + GPS route start + strengthened exit handling + hotel coordinates + exit-to-phone navigation. -->
+<!-- V223-E-FIX1: clean deployment build; V222 remains untouched. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Istanbul Tourist Transport Planner — V223-E</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="build-id" content="V223-E-FIX1">
+<title>Istanbul Tourist Transport Planner — V223-E-FIX1</title>
+<script>
+(function(){
+  // One-time cleanup for any legacy PWA/service-worker/cache left by older deployments.
+  // This does not touch application data; it only removes this site's old worker/cache.
+  window.__APP_BUILD_ID__='V223-E-FIX1';
+  try{
+    if('serviceWorker' in navigator){
+      const key='itp_legacy_cleanup_V223_E_FIX1';
+      if(!sessionStorage.getItem(key)){
+        sessionStorage.setItem(key,'1');
+        navigator.serviceWorker.getRegistrations().then(regs=>Promise.all(regs.map(r=>r.unregister())))
+          .then(()=>('caches' in window)?caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))):null)
+          .then(()=>{ if(location.reload) location.reload(); })
+          .catch(()=>{});
+      }
+    }
+  }catch(e){}
+})();
+</script>
 <style>
 /* Istanbul Tourist Transport Planner — Clean UI System */
 
@@ -161,7 +182,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V223-E-FIX1</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -3213,9 +3234,8 @@ function staticGpsStationCoordinates(){
     {station:'haciosman_hub',mode:'M2 Metro',label:'Hacıosman M2',lat:41.13980,lng:29.02940}
   ];
 }
-async function resolveCurrentLocationStation(){
-  let stations=await fetchGpsStationCoordinates();
-  if(stations.length<5) stations=staticGpsStationCoordinates();
+function resolveCurrentLocationStation(){
+  const stations=staticGpsStationCoordinates();
   if(!stations.length) return null;
   let best=null;
   for(const st of stations){
@@ -3224,6 +3244,17 @@ async function resolveCurrentLocationStation(){
   }
   return best;
 }
+function setLocationStatus(message){
+  const el=document.getElementById('locationStatus');
+  if(!el) return;
+  el.textContent=String(message||'');
+  el.style.display=message?'block':'none';
+}
+function resetCurrentLocationButton(){
+  const btn=document.getElementById('useCurrentLocationBtn');
+  locationBusy=false;
+  if(btn){btn.disabled=false;btn.textContent='📍 Mevcut konumumu kullan';}
+}
 function useCurrentLocation(){
   if(locationBusy) return;
   if(!navigator.geolocation){setLocationStatus('Bu tarayıcı konum hizmetini desteklemiyor.');return;}
@@ -3231,12 +3262,24 @@ function useCurrentLocation(){
   locationBusy=true;
   if(btn){btn.disabled=true;btn.textContent='📍 Konum alınıyor…';}
   setLocationStatus('Konum izni bekleniyor…');
-  navigator.geolocation.getCurrentPosition(async pos=>{
+  let settled=false;
+  const finishError=(message)=>{
+    if(settled) return;
+    settled=true;
+    setLocationStatus(message);
+    resetCurrentLocationButton();
+  };
+  const watchdog=setTimeout(()=>finishError('Konum alınamadı. Tarayıcı/Windows konum hizmetinin açık olduğundan emin olup tekrar dene.'),20000);
+  navigator.geolocation.getCurrentPosition(pos=>{
+    if(settled) return;
+    settled=true;
+    clearTimeout(watchdog);
     currentLocation={lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:Number.isFinite(pos.coords.accuracy)?pos.coords.accuracy:null,timestamp:pos.timestamp};
-    currentLocationStation=await resolveCurrentLocationStation();
+    setLocationStatus('Konum bulundu. Yakındaki raylı sistem istasyonu belirleniyor…');
+    currentLocationStation=resolveCurrentLocationStation();
     if(!currentLocationStation){
       setLocationStatus('Konum alındı ancak yakınındaki raylı sistem istasyonu bulunamadı.');
-      locationBusy=false;if(btn){btn.disabled=false;btn.textContent='📍 Mevcut konumumu kullan';}return;
+      resetCurrentLocationButton();return;
     }
     start={id:'current_location',name:'Mevcut konumum',side:'İstanbul',emoji:'📍',desc:'Telefonun konumundan alındı',isCurrentLocation:true};
     stationSearchMode='target';selectedTarget=null;targetPlaceSearch='';q.value='';
@@ -3246,12 +3289,12 @@ function useCurrentLocation(){
     const dist=currentLocationStation.distanceKm<1 ? `${Math.round(currentLocationStation.distanceKm*1000)} m` : `${currentLocationStation.distanceKm.toFixed(1)} km`;
     setLocationStatus(`Konum alındı${acc}. En yakın kayıtlı raylı sistem: ${currentLocationStation.label} (${dist}). Şimdi varış noktanı seç.`);
     render();requestAnimationFrame(()=>q.focus());
-    locationBusy=false;if(btn){btn.disabled=false;btn.textContent='📍 Mevcut konumumu kullan';}
+    resetCurrentLocationButton();
   },err=>{
-    locationBusy=false;if(btn){btn.disabled=false;btn.textContent='📍 Mevcut konumumu kullan';}
+    clearTimeout(watchdog);
     const messages={1:'Konum izni verilmedi. Tarayıcı ayarlarından bu site için konum iznini açmalısın.',2:'Konum alınamadı. GPS/Wi‑Fi bağlantını kontrol edip tekrar dene.',3:'Konum isteği zaman aşımına uğradı. Lütfen tekrar dene.'};
-    setLocationStatus(messages[err.code]||'Konum alınamadı. Lütfen tekrar dene.');
-  },{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+    finishError(messages[err.code]||'Konum alınamadı. Lütfen tekrar dene.');
+  },{enableHighAccuracy:false,timeout:12000,maximumAge:120000});
 }
 function buildCurrentLocationNavigation(target){
   if(!currentLocation || !target) return null;
@@ -3807,6 +3850,7 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
+console.info('[Istanbul Tourist Transport Planner] BUILD V223-E-FIX1');
 })();
 </script>
 </body></html>
