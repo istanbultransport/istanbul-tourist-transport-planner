@@ -4833,8 +4833,8 @@ function useCurrentLocation(){
     setLocationStatus('Konum bulundu. Yakındaki raylı sistem istasyonu belirleniyor…');
     // Prefer the live Metro Istanbul station registry when available; static
     // coordinates remain the deterministic offline fallback.
-    const liveStations=await fetchGpsStationCoordinates();
-    currentLocationStation=resolveCurrentLocationStation(liveStations.length?liveStations:null);
+    await fetchGpsStationCoordinates();
+    currentLocationStation=resolveCurrentLocationStation();
     if(currentLocationStation){
       const gpsAccess={station:currentLocationStation.station,mode:currentLocationStation.mode,label:currentLocationStation.label,direct:true,fromCurrentLocation:true};
       stationSearchAccess.current_location=gpsAccess;
