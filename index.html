@@ -2199,6 +2199,16 @@ function currentLocationCorridorPenalty(candidate,allCandidates,target){
   // Yalnızca Marmaray adayı diğer raylı seçeneğe göre en fazla 7 dk daha uzaktaysa
   // koridor avantajı uygula. Diğer istasyon Marmaray'dan belirgin biçimde daha
   // yakınsa Marmaray lehine yapay ceza uygulanmamalıdır.
+  // Aynı fiziksel düğümde hem M4 hem Marmaray varsa, havalimanı rotasında
+  // Marmaray doğrudan Yenikapı'ya gittiği için kullanıcıyı M4'e bindirip
+  // Ayrılık Çeşmesi'nde tekrar Marmaray'a aktarmak gereksizdir.
+  // GPS katmanındaki 'en yakın istasyon' ile 'ilk binilecek istasyon' ayrımını
+  // burada açıkça koruyoruz: ör. Pendik M4 daha yakın olsa bile Pendik Marmaray
+  // 15 dakika içinde erişilebiliyorsa ilk biniş Marmaray olabilir.
+  if(candidate?.station===bestMarmaray?.station && !candidateHasMarmaray
+     && Number(bestMarmaray.walkMinutes)<=15 && bestMarmaray.path?.length){
+    return 10000;
+  }
   if(!Number.isFinite(walkGap) || walkGap<0 || walkGap>7) return 0;
   const cq=routeQuality(candidate.path||[]), mq=routeQuality(bestMarmaray.path||[]);
   const transferGain=cq.transitTransfers-mq.transitTransfers;
@@ -4366,16 +4376,31 @@ function renderPath(path,targetId){
     const walkMins=mode==='Yürüyüş' ? (touristWalkTime(from,to) ?? explicitWalkMins) : null;
     const modeTitle=walkMins ? `Yürüyüş — yaklaşık ${Math.round(walkMins)} dk` : mode;
     if(mode==='Yürüyüş'){
-      const walkSummary = walkMins
-        ? `<p style="margin-top:10px"><b>${fromLabel}</b> → <b>${toLabel}</b><br>Yaklaşık <b>${walkMins} dakika</b> yürü.</p>`
-        : `<p style="margin-top:10px"><b>${fromLabel}</b> → <b>${toLabel}</b><br>Yürüyerek ulaş.</p>`;
-      return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>${icons[mode]||'🚶'} ${modeTitle}</h3>${walkSummary}<div style="margin-top:8px">${walkingNavigationForNode(to,undefined,mode)}</div>${action}</div></div>`;
+      const currentLocationWalk = from==='current_location' && i===0;
+      const walkSummary = currentLocationWalk
+        ? (walkMins
+          ? `<p style="margin-top:10px">📍 <b>Başlangıç noktanız telefonunuzun GPS konumu.</b><br>🚶 <b>${toLabel}</b> istasyonuna yaklaşık <b>${walkMins} dakika</b> yürüyün.<br><span style="display:block;margin-top:8px;font-size:12px;opacity:.9">ℹ️ ${toLabel} sizin bulunduğunuz konum değil; burası rotadaki ilk yürüyüşle ulaşacağınız istasyondur.</span></p>`
+          : `<p style="margin-top:10px">📍 <b>Başlangıç noktanız telefonunuzun GPS konumu.</b><br>🚶 <b>${toLabel}</b> istasyonuna yürüyerek ulaşın.<br><span style="display:block;margin-top:8px;font-size:12px;opacity:.9">ℹ️ ${toLabel} sizin bulunduğunuz konum değil; burası rotadaki ilk yürüyüşle ulaşacağınız istasyondur.</span></p>`)
+        : (walkMins
+          ? `<p style="margin-top:10px"><b>${fromLabel}</b> → <b>${toLabel}</b><br>Yaklaşık <b>${walkMins} dakika</b> yürü.</p>`
+          : `<p style="margin-top:10px"><b>${fromLabel}</b> → <b>${toLabel}</b><br>Yürüyerek ulaş.</p>`);
+      return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>${icons[mode]||'🚶'} ${currentLocationWalk ? 'GPS konumundan istasyona yürüyüş' : modeTitle}</h3>${walkSummary}<div style="margin-top:8px">${walkingNavigationForNode(to,undefined,mode)}</div>${action}</div></div>`;
     }
     return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>${icons[mode]||'🚉'} ${modeTitle}</h3><div class="route-detail"><div class="info"><span class="label">📍 Bin</span><span class="value">${displayFromLabel}</span></div><div class="info"><span class="label">➡️ Yön</span><span class="value">${direction}</span></div><div class="info"><span class="label">🛑 İn</span><span class="value">${displayToLabel}</span></div></div>${explanation ? `<p style="margin-top:10px">${explanation}</p>` : ''}${action}${ferryRailAccessCard}</div></div>`;
   }).join('');
 }
 
 /* V230.11 Last-Mile QA helpers — pure deterministic checks. */
+function currentLocationPresentationQA(){
+  const out={status:'PASS',tests:[],failures:[]};
+  const add=(name,ok,detail)=>{out.tests.push({name,ok,detail});if(!ok){out.status='FAIL';out.failures.push({name,detail});}};
+  const source=document.documentElement.innerHTML;
+  add('gps-start-explicit',source.includes('Başlangıç noktanız telefonunuzun GPS konumu.'),'GPS başlangıcı açıkça ayrıştırılıyor.');
+  add('station-not-current-location',source.includes('yalnızca yürüyerek ulaşacağınız ilk istasyondur'),'İlk istasyonun kullanıcının mevcut konumu olmadığı açıkça belirtiliyor.');
+  add('current-walk-card-explicit',source.includes('GPS konumundan istasyona yürüyüş'),'Mevcut konumdan ilk istasyona yürüyüş kartı ayrı başlıkla gösteriliyor.');
+  return out;
+}
+
 function lastMilePresentationQA(){
   const out={status:'PASS',tests:[],failures:[]};
   const add=(name,ok,detail)=>{out.tests.push({name,ok,detail});if(!ok){out.status='FAIL';out.failures.push({name,detail});}};
@@ -4640,9 +4665,9 @@ function useCurrentLocation(){
     document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));document.querySelector('.filter[data-filter="Tümü"]').classList.add('active');filter='Tümü';
     const acc=currentLocation.accuracy ? ` ±${Math.round(currentLocation.accuracy)} m` : '';
     const dist=currentLocationStation.distanceKm<1 ? `${Math.round(currentLocationStation.distanceKm*1000)} m` : `${currentLocationStation.distanceKm.toFixed(1)} km`;
-    setLocationStatus(`Konum alındı${acc}. En yakın kayıtlı raylı sistem: ${currentLocationStation.label} (${dist}). Şimdi varış noktanı seç.`);
+    setLocationStatus(`📍 GPS konumunuz alındı${acc}. 🚶 ${currentLocationStation.label} istasyonuna yaklaşık ${dist} yürüyüş var. Şimdi varış noktanı seç.`);
     const navBox=document.getElementById('locationStatus');
-    if(navBox) navBox.innerHTML=`Konum alındı${acc}. En yakın kayıtlı raylı sistem: <b>${currentLocationStation.label}</b> (${dist}). Şimdi varış noktanı seç.${currentLocationWalkingNavigationHtml()}`;
+    if(navBox) navBox.innerHTML=`📍 <b>Başlangıç noktanız telefonunuzun GPS konumu.</b>${acc ? ` ${acc}` : ''}<br>🚶 <b>${currentLocationStation.label}</b> yalnızca yürüyerek ulaşacağınız ilk istasyondur (${dist}).<br>Şimdi varış noktanı seç.${currentLocationWalkingNavigationHtml()}`;
     render();requestAnimationFrame(()=>q.focus());
     resetCurrentLocationButton();
   },err=>{
@@ -5199,6 +5224,40 @@ render();
   return out;
  }
  window.v223CurrentLocationAccessQA=v223CurrentLocationAccessQA;
+})();
+
+// V230.12.2 GPS boarding-station clarity QA: when GPS is nearer to Pendik M4
+// but Pendik Marmaray is the practical first boarding station for the airport.
+(function(){
+  function v23012_2PendikAirportAccessQA(){
+    const out={status:'PASS',failures:[],checks:{}};
+    const fail=(k,d)=>{out.failures.push({check:k,detail:d});out.checks[k]=false;};
+    const pass=k=>{out.checks[k]=true;};
+    const fake={lat:40.88550,lng:29.23950};
+    const target=places.find(p=>p.id==='istanbul-airport');
+    if(!target) fail('airport-target','Istanbul Airport target missing');
+    else if(typeof currentLocationCorridorPenalty!=='function') fail('corridor-penalty','currentLocationCorridorPenalty missing');
+    else {
+      const rows=staticGpsStationCoordinates();
+      const m4=rows.find(x=>x.station==='pendik'&&x.mode==='M4 Metro');
+      const mar=rows.find(x=>x.station==='pendik'&&x.mode==='Marmaray');
+      if(!m4||!mar) fail('pendik-candidates','Pendik M4/Marmaray candidates missing');
+      else {
+        let marPath=null;
+        try{marPath=minimumRailRoute(mar.station,target.id,4,null,mar.mode);}catch(_){}
+        const walk=(st)=>Math.max(1,Math.round(gpsDistanceKm(fake,st)*1000/80));
+        const m4c={...m4,path:[],walkMinutes:walk(m4)};
+        const marc={...mar,path:marPath,walkMinutes:walk(mar)};
+        if(!marPath) fail('pendik-marmaray-airport-route','Pendik Marmaray airport path missing'); else pass('pendik-marmaray-airport-route');
+        const penalty=currentLocationCorridorPenalty(m4c,[m4c,marc],target);
+        if(penalty<10000) fail('m4-vs-marmaray-preference',{penalty,m4Walk:m4c.walkMinutes,marmarayWalk:marc.walkMinutes}); else pass('m4-vs-marmaray-preference');
+      }
+    }
+    out.status=out.failures.length?'FAIL':'PASS';
+    window.v23012_2PendikAirportAccessQA=v23012_2PendikAirportAccessQA;
+    return out;
+  }
+  window.v23012_2PendikAirportAccessQA=v23012_2PendikAirportAccessQA;
 })();
 
 // QA hook: automatically available without affecting normal application flow.
