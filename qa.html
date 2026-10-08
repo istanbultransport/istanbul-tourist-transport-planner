@@ -53,7 +53,7 @@ async function run(){
 
   test('Başlangıç değiştirme hedefi temizlemiyor',()=>{
     const marker={id:'qa-target',name:'QA hedefi'};
-    w.eval("selectedTarget=arguments[0]", marker);
+    w.eval("selectedTarget="+JSON.stringify(marker));
     const before=w.eval('selectedTarget');
     w.changeStart();
     return w.eval('selectedTarget')===before;
@@ -61,7 +61,7 @@ async function run(){
 
   test('Hedef değiştirme başlangıcı koruyor',()=>{
     const marker={id:'qa-start',name:'QA başlangıcı'};
-    w.eval("start=arguments[0]", marker);
+    w.eval("start="+JSON.stringify(marker));
     const before=w.eval('start');
     w.changeTarget();
     return w.eval('start')===before;
