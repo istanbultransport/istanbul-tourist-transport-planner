@@ -1,15 +1,15 @@
-<!-- V230.12-1000QA-FINAL: adaptive access + explicit starting-line + authoritative station navigation. -->
+<!-- V230.12.3-1000QA-FINAL: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.12-1000QA-FINAL">
+<meta name="build-id" content="V230.12.3-1000QA-FINAL">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
   // One-time cleanup for any legacy PWA/service-worker/cache left by older deployments.
   // This does not touch application data; it only removes this site's old worker/cache.
-  window.__APP_BUILD_ID__='V230.12-1000QA-FINAL';
+  window.__APP_BUILD_ID__='V230.12.3-1000QA-FINAL';
   try{
     if('serviceWorker' in navigator){
       const key='itp_legacy_cleanup_V223_E_FIX1';
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12-1000QA-FINAL</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12.3-1000QA-FINAL</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -2554,7 +2554,7 @@ const lastMileWalkMinutes = {
   emirgan_parki: 3,
 };
 
-/* V230.11: final-mile walking time is station+target specific.
+/* Final-mile walking time is station+target specific.
  * A target-only value must never override the actual alighted station, because
  * the same destination can be 2 minutes from one station and 20+ minutes from
  * another. Legacy target-only values remain usable only when the target's
@@ -4390,7 +4390,7 @@ function renderPath(path,targetId){
   }).join('');
 }
 
-/* V230.11 Last-Mile QA helpers — pure deterministic checks. */
+/* Last-Mile QA helpers — pure deterministic checks. */
 function currentLocationPresentationQA(){
   const out={status:'PASS',tests:[],failures:[]};
   const add=(name,ok,detail)=>{out.tests.push({name,ok,detail});if(!ok){out.status='FAIL';out.failures.push({name,detail});}};
@@ -5226,10 +5226,10 @@ render();
  window.v223CurrentLocationAccessQA=v223CurrentLocationAccessQA;
 })();
 
-// V230.12.2 GPS boarding-station clarity QA: when GPS is nearer to Pendik M4
+// V230.12.3 GPS boarding-station clarity QA: when GPS is nearer to Pendik M4
 // but Pendik Marmaray is the practical first boarding station for the airport.
 (function(){
-  function v23012_2PendikAirportAccessQA(){
+  function v23012_3PendikAirportAccessQA(){
     const out={status:'PASS',failures:[],checks:{}};
     const fail=(k,d)=>{out.failures.push({check:k,detail:d});out.checks[k]=false;};
     const pass=k=>{out.checks[k]=true;};
@@ -5254,16 +5254,16 @@ render();
       }
     }
     out.status=out.failures.length?'FAIL':'PASS';
-    window.v23012_2PendikAirportAccessQA=v23012_2PendikAirportAccessQA;
+    window.v23012_3PendikAirportAccessQA=v23012_3PendikAirportAccessQA;
     return out;
   }
-  window.v23012_2PendikAirportAccessQA=v23012_2PendikAirportAccessQA;
+  window.v23012_3PendikAirportAccessQA=v23012_3PendikAirportAccessQA;
 })();
 
 // QA hook: automatically available without affecting normal application flow.
 
 </script>
-<script>/* V230.12-1000QA-FINAL focused QA */
+<script>/* V230.12.3-1000QA-FINAL focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
@@ -5629,7 +5629,7 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230.12-1000QA-FINAL');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.12.3-1000QA-FINAL');
 })();
 
 function v227WalkingNavigationQA(){
