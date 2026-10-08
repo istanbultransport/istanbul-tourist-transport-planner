@@ -5447,7 +5447,12 @@ async function v23012_6GpsBoardingPresentationQA(){
   if(!target){add('airport-target',false,'Istanbul Airport target missing');out.status='FAIL';return out;}
   const access=await buildAdaptiveStartAccess('current_location',target,fake);
   add('adaptive-boarding-selection',access?.station==='pendik'&&access?.mode==='Marmaray',access&&{station:access.station,mode:access.mode,walkMinutes:access.walkMinutes,preference:access.boardingPreference});
-  add('nearest-vs-boarding-separation',resolveCurrentLocationStation()?.mode==='M4 Metro',resolveCurrentLocationStation());
+  // GPS routing may intentionally choose the boarding corridor rather than
+  // the geometrically nearest line. The presentation must match that choice.
+  add('nearest-vs-boarding-separation',
+    resolveCurrentLocationStation()?.station===access?.station &&
+    resolveCurrentLocationStation()?.mode===access?.mode,
+    resolveCurrentLocationStation());
   const path=access?.path||minimumRailRoute('pendik',target.id,4,null,'Marmaray');
   add('boarding-route-honors-marmaray',!!path&&routeHonorsStartMode(path,'Marmaray'),path&&firstTransitJourneyMode(path));
   add('boarding-first-transit-marmaray',!!path&&firstTransitJourneyMode(path)?.mode==='Marmaray',path&&firstTransitJourneyMode(path));
@@ -5808,6 +5813,8 @@ function camlicaIstiklalRouteQA(){
   check('taksim-navigation-query',/Taksim Metro.*İstiklal Caddesi/i.test(nav),'Yaya navigasyonu için çıkış odaklı sorgu mevcut.');
   return out;
 }
+
+window.camlicaIstiklalRouteQA=camlicaIstiklalRouteQA;
 
 function v222DataAudit(){
  const out={status:'PASS',failures:[],counts:{}};
