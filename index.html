@@ -1,15 +1,15 @@
-<!-- V230-ROUTE-QA-START-INTEGRITY: adaptive access + explicit starting-line integrity. -->
+<!-- V230.2-STATION-NAV-LIVE-FIRST: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230-COORDINATE-QA-ADAPTIVE-START">
+<meta name="build-id" content="V230.2-STATION-NAV-LIVE-FIRST">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
   // One-time cleanup for any legacy PWA/service-worker/cache left by older deployments.
   // This does not touch application data; it only removes this site's old worker/cache.
-  window.__APP_BUILD_ID__='V230-COORDINATE-QA-ADAPTIVE-START';
+  window.__APP_BUILD_ID__='V230.2-STATION-NAV-LIVE-FIRST';
   try{
     if('serviceWorker' in navigator){
       const key='itp_legacy_cleanup_V223_E_FIX1';
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230-COORDINATE-QA-ADAPTIVE-START</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.2-STATION-NAV-LIVE-FIRST</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -1013,10 +1013,13 @@ async function ensureStationNavigationLiveCoordinates(){
   return stationNavigationLivePromise;
 }
 function stationNavigationDestination(nodeId,modeHint){
-  const local=staticStationNavigationCoordinate(nodeId,modeHint);
-  if(local) return `${local.lat},${local.lng}`;
+  // When the authoritative IBB/Metro Istanbul registry has already been
+  // warmed, prefer it over the static fallback. Static coordinates remain a
+  // deterministic offline fallback, not the primary source.
   const live=stationNavigationLiveCache.get(stationModeKey(modeHint,nodeId)) || stationNavigationLiveCache.get(stationModeKey('',nodeId));
   if(live && Number.isFinite(Number(live.lat)) && Number.isFinite(Number(live.lng))) return `${Number(live.lat)},${Number(live.lng)}`;
+  const local=staticStationNavigationCoordinate(nodeId,modeHint);
+  if(local) return `${local.lat},${local.lng}`;
   return stationNavigationQuery(nodeId,modeHint);
 }
 function walkingNavigationForNode(nodeId,label='🚶 Yürü — hedefe navigasyonu aç',modeHint=null){
@@ -1044,17 +1047,22 @@ if(!window.__stationNavigationClickBound){
     const nodeId=a.getAttribute('data-station-nav');
     const mode=a.getAttribute('data-station-mode')||'';
     if(!nodeId) return;
-    const local=staticStationNavigationCoordinate(nodeId,mode);
-    if(local) return; // already exact; normal browser navigation is ideal.
     ev.preventDefault();
-    /* Open synchronously to avoid popup blockers; resolve the exact station
-       coordinate asynchronously and then navigate the already-open tab. */
+    /* Open synchronously to avoid popup blockers; resolve the authoritative
+       IBB/Metro Istanbul coordinate first. Only if the live registry cannot
+       resolve the station do we fall back to the audited static coordinate,
+       and finally to an explicit station+line text query. */
     const popup=window.open('about:blank','_blank');
     const rows=await ensureStationNavigationLiveCoordinates();
-    const live=(rows||[]).find(x=>x.station===nodeId && x.mode===mode);
+    const live=(rows||[]).find(x=>x.station===nodeId && x.mode===mode)
+      || stationNavigationLiveCache.get(stationModeKey(mode,nodeId))
+      || stationNavigationLiveCache.get(stationModeKey('',nodeId));
+    const local=staticStationNavigationCoordinate(nodeId,mode);
     const destination=live && Number.isFinite(Number(live.lat)) && Number.isFinite(Number(live.lng))
       ? `${Number(live.lat)},${Number(live.lng)}`
-      : stationNavigationQuery(nodeId,mode);
+      : (local && Number.isFinite(Number(local.lat)) && Number.isFinite(Number(local.lng))
+        ? `${Number(local.lat)},${Number(local.lng)}`
+        : stationNavigationQuery(nodeId,mode));
     const url=currentLocationWalkingNavUrl(destination);
     if(popup && !popup.closed) popup.location.href=url;
     else window.location.href=url;
@@ -3300,6 +3308,66 @@ function routeHonorsStartMode(path,startMode){
   return false;
 }
 
+function explicitStartLineRoute(a,b,startMode,endAccessOverride=null,maxTransfers=4){
+  if(!startMode || !railLines[startMode] || !railLines[startMode].order.includes(a)) return null;
+  const end=endAccessOverride || resolveEndAccess(b,a);
+  if(!end?.station) return null;
+  const endMode=end.mode && railLines[end.mode] ? end.mode : null;
+  const targetNode=end.station;
+  if(endMode && railLines[endMode].order.includes(a) && a===targetNode){
+    if(startMode===endMode) return [[a,a,startMode,`<b>${railLines[startMode].labels?.[a]||nodeLabel(a)}</b> istasyonunda ${startMode} hattında devam et.`]];
+    const directTransfer=Array.isArray(transferStations[`${startMode}|${endMode}`]) && transferStations[`${startMode}|${endMode}`].includes(a);
+    if(directTransfer){
+      return [[a,a,endMode,`<b>${railLines[startMode].labels?.[a]||nodeLabel(a)}</b> istasyonunda <b>${endMode}</b> hattına aktarma yap.`]];
+    }
+  }
+  if(endMode && startMode===endMode && railLines[startMode].order.includes(targetNode)){
+    const leg=makeRailLeg(startMode,a,targetNode);
+    return leg ? [leg] : null;
+  }
+  const queue=[{line:startMode,node:a,path:[],transfers:0,stops:0}];
+  const seen=new Map([[`${startMode}|${a}`,0]]);
+  let best=null;
+  while(queue.length){
+    queue.sort((x,y)=>x.transfers-y.transfers||x.stops-y.stops);
+    const st=queue.shift();
+    if(st.transfers>maxTransfers) continue;
+    if(endMode && st.line===endMode && railLines[st.line].order.includes(targetNode)){
+      const leg=makeRailLeg(st.line,st.node,targetNode);
+      if(leg || st.node===targetNode){
+        const path=leg ? st.path.concat([leg]) : st.path;
+        if(hasCoherentRailPath(path) && hasVerifiedTransitTransfers(path)){
+          best=path; break;
+        }
+      }
+    }
+    if(!endMode && st.node===targetNode){best=st.path;break;}
+    // Move along the current line to every downstream/upstream station.
+    const order=railLines[st.line].order||[];
+    const idx=order.indexOf(st.node);
+    if(idx<0) continue;
+    for(const nextNode of [order[idx-1],order[idx+1]]){
+      if(!nextNode) continue;
+      const leg=makeRailLeg(st.line,st.node,nextNode);
+      if(!leg) continue;
+      const key=`${st.line}|${nextNode}`;
+      const cost=st.transfers*1000+st.stops+1;
+      if(!seen.has(key)||cost<seen.get(key)){seen.set(key,cost);queue.push({line:st.line,node:nextNode,path:st.path.concat([leg]),transfers:st.transfers,stops:st.stops+1});}
+    }
+    // Verified line transfers only.
+    for(const [key,nodes] of Object.entries(transferStations||{})){
+      const [fromLine,toLine]=key.split('|');
+      if(fromLine!==st.line || !railLines[toLine]) continue;
+      if(!(nodes||[]).includes(st.node)) continue;
+      const transfer=[st.node,st.node,toLine,`<b>${railLines[st.line].labels?.[st.node]||nodeLabel(st.node)}</b> istasyonunda <b>${toLine}</b> hattına aktarma yap.`,{surfaceTransfer:{type:'station_internal',difficulty:0,walkMinutes:0,label:'İstasyon içi aktarma',verified:true}}];
+      const key2=`${toLine}|${st.node}`;
+      const cost=(st.transfers+1)*1000+st.stops;
+      if(st.transfers+1<=maxTransfers && (!seen.has(key2)||cost<seen.get(key2))){seen.set(key2,cost);queue.push({line:toLine,node:st.node,path:st.path.concat([transfer]),transfers:st.transfers+1,stops:st.stops});}
+    }
+  }
+  return best;
+}
+
 minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOverride=null){
   // Fiziksel düğüm aynıysa rota motoru yapay bir "aynı istasyonda tekrar
   // aktarma" adımı üretmemeli. Özellikle çok hatlı istasyonlarda wrapper'ın
@@ -3310,6 +3378,13 @@ minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOve
   const key=`${a}|${b}|${maxTransfers}|${endKey}|${startKey}`;
   if(railRouteCache.has(key)) return railRouteCache.get(key);
   let result=null;
+  if(startModeOverride && isKnownRailStationNode(a) && railLines[startModeOverride]?.order.includes(a)){
+    const explicitPath=explicitStartLineRoute(a,b,startModeOverride,endAccessOverride,maxTransfers);
+    if(explicitPath && routeHonorsStartMode(explicitPath,startModeOverride) && hasCoherentRailPath(explicitPath) && hasVerifiedTransitTransfers(explicitPath)){
+      railRouteCache.set(key,explicitPath);
+      return explicitPath;
+    }
+  }
   // Ham bir istasyon düğümü hedefleniyor ve kullanıcı başlangıç hattını
   // açıkça seçmişse, hedef aynı seçili hattan geçiyorsa hedef erişimini de
   // o hattan sabitle. Aksi halde getEndRailAccess() fiziksel istasyondaki
@@ -4761,7 +4836,7 @@ render();
 // QA hook: automatically available without affecting normal application flow.
 
 </script>
-<script>/* V230-COORDINATE-QA-ADAPTIVE-START focused QA */
+<script>/* V230.2-STATION-NAV-LIVE-FIRST focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
@@ -4940,7 +5015,7 @@ function deepRouteRegressionQA(){
 window.deepRouteRegressionQA=deepRouteRegressionQA;
 })();
 </script>
-<script>/* V230.1 station navigation / coordinate integrity QA */
+<script>/* V230.2 station navigation / coordinate integrity QA */
 (function(){
  function v230StationNavigationCoordinateQA(){
   const out={status:'PASS',tests:[],failures:[],summary:{}};
@@ -5102,7 +5177,7 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230-COORDINATE-QA-ADAPTIVE-START');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.2-STATION-NAV-LIVE-FIRST');
 })();
 
 function v227WalkingNavigationQA(){
