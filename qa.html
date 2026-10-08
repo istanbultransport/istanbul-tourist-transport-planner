@@ -52,20 +52,23 @@ async function run(){
   });
 
   test('Başlangıç değiştirme hedefi temizlemiyor',()=>{
+    const marker={id:'qa-target',name:'QA hedefi'};
+    w.eval("selectedTarget=arguments[0]", marker);
     const before=w.eval('selectedTarget');
-    if(!before) return 'Test önkoşulu: seçili hedef yok';
     w.changeStart();
     return w.eval('selectedTarget')===before;
   });
 
   test('Hedef değiştirme başlangıcı koruyor',()=>{
+    const marker={id:'qa-start',name:'QA başlangıcı'};
+    w.eval("start=arguments[0]", marker);
     const before=w.eval('start');
-    if(!before) return 'Test önkoşulu: başlangıç yok';
     w.changeTarget();
     return w.eval('start')===before;
   });
 
   test('Yeni rota başlangıç ve hedefi temizliyor',()=>{
+    w.eval("start={id:'qa-start',name:'QA'}; selectedTarget={id:'qa-target',name:'QA'}");
     w.newRoute();
     return w.eval('start')===null && w.eval('selectedTarget')===null;
   });
@@ -73,13 +76,15 @@ async function run(){
   test('selectStart fonksiyonu hedef kaybına neden olmuyor',()=>{
     const startCandidates=[...w.document.querySelectorAll('[onclick*="selectStart("]')];
     if(!startCandidates.length) return 'Başlangıç kartı bulunamadı';
-    const target=w.eval('selectedTarget');
-    const node=startCandidates[0];
-    const m=(node.getAttribute('onclick')||'').match(/selectStart\((['"])(.*?)\1\)/);
-    if(!m) return 'Kart ID çözülemedi';
-    if(!target) return 'Test önkoşulu: seçili hedef yok';
-    w.selectStart(m[2]);
-    return w.eval('selectedTarget')===target;
+    const ids=startCandidates.map(node=>(node.getAttribute('onclick')||'').match(/selectStart\\((['"])(.*?)\\1\\)/)).filter(Boolean).map(m=>m[2]);
+    if(!ids.length) return 'Kart ID çözülemedi';
+    const original=w.buildRouteToTarget;
+    w.buildRouteToTarget=()=>{};
+    w.eval("selectedTarget={id:'qa-target',name:'QA hedefi'}");
+    const before=w.eval('selectedTarget');
+    w.selectStart(ids[0]);
+    w.buildRouteToTarget=original;
+    return w.eval('selectedTarget')===before;
   });
 
   test('GPS değişkenleri tanımlı',()=>[
