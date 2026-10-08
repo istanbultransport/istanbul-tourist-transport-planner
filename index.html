@@ -1,27 +1,27 @@
-<!-- V230.12.5-1000QA-FINAL: adaptive access + explicit starting-line + authoritative station navigation. -->
+<!-- V230.12.6-1000QA-FINAL: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.12.5-1000QA-FINAL">
+<meta name="build-id" content="V230.12.6-1000QA-FINAL">
+<meta name="theme-color" content="#10243b">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
-  // One-time cleanup for any legacy PWA/service-worker/cache left by older deployments.
-  // This does not touch application data; it only removes this site's old worker/cache.
-  window.__APP_BUILD_ID__='V230.12.5-1000QA-FINAL';
+  window.__APP_BUILD_ID__='V230.12.6-1000QA-FINAL';
   try{
     if('serviceWorker' in navigator){
-      const key='itp_legacy_cleanup_V223_E_FIX1';
-      if(!sessionStorage.getItem(key)){
-        sessionStorage.setItem(key,'1');
-        navigator.serviceWorker.getRegistrations().then(regs=>Promise.all(regs.map(r=>r.unregister())))
-          .then(()=>('caches' in window)?caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))):null)
-          .then(()=>{ if(location.reload) location.reload(); })
-          .catch(()=>{});
-      }
+      window.addEventListener('load',function(){
+        navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(function(err){
+          console.warn('[PWA] Service worker registration failed:',err);
+        });
+      });
     }
-  }catch(e){}
+  }catch(e){
+    console.warn('[PWA] Registration unavailable:',e);
+  }
 })();
 </script>
 <style>
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12.5-1000QA-FINAL</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12.6-1000QA-FINAL</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -2175,7 +2175,7 @@ async function buildAdaptiveStartAccess(placeId,target,origin){
   const baseScored=evaluated.map(c=>({...c,score:routeDecisionScore(c.path||[])+c.walkMinutes*12}));
   const scored=baseScored.map(c=>({...c,score:c.score+currentLocationCorridorPenalty(c,baseScored,target)}));
 
-  // V230.12.5 HARD GUARD: when the GPS is near a physical interchange node
+  // V230.12.6 HARD GUARD: when the GPS is near a physical interchange node
   // that has both M4 and Marmaray (e.g. Pendik), do not let the nearest-line
   // candidate win an airport route if the same-node Marmaray boarding is
   // reachable within 15 minutes. This is deliberately applied after all
@@ -5252,10 +5252,10 @@ render();
  window.v223CurrentLocationAccessQA=v223CurrentLocationAccessQA;
 })();
 
-// V230.12.5 GPS boarding-station clarity QA: when GPS is nearer to Pendik M4
+// V230.12.6 GPS boarding-station clarity QA: when GPS is nearer to Pendik M4
 // but Pendik Marmaray is the practical first boarding station for the airport.
 (function(){
-  function v23012_5PendikAirportAccessQA(){
+  function v23012_6PendikAirportAccessQA(){
     const out={status:'PASS',failures:[],checks:{}};
     const fail=(k,d)=>{out.failures.push({check:k,detail:d});out.checks[k]=false;};
     const pass=k=>{out.checks[k]=true;};
@@ -5280,15 +5280,15 @@ render();
       }
     }
     out.status=out.failures.length?'FAIL':'PASS';
-    window.v23012_5PendikAirportAccessQA=v23012_5PendikAirportAccessQA;
+    window.v23012_6PendikAirportAccessQA=v23012_6PendikAirportAccessQA;
     return out;
   }
-  window.v23012_5PendikAirportAccessQA=v23012_5PendikAirportAccessQA;
+  window.v23012_6PendikAirportAccessQA=v23012_6PendikAirportAccessQA;
 })();
 
-// V230.12.5 focused GPS boarding + presentation QA.
+// V230.12.6 focused GPS boarding + presentation QA.
 // This verifies the complete chain: GPS candidate -> boarding choice -> rail route -> UI label -> navigation target.
-async function v23012_5GpsBoardingPresentationQA(){
+async function v23012_6GpsBoardingPresentationQA(){
   const out={status:'PASS',tests:[],failures:[]};
   const add=(id,ok,detail)=>{out.tests.push({id,status:ok?'PASS':'FAIL',detail});if(!ok)out.failures.push({id,detail});};
   const fake={lat:40.88550,lng:29.23950};
@@ -5316,17 +5316,17 @@ async function v23012_5GpsBoardingPresentationQA(){
   ],target);
   add('same-node-over-15-not-hard-forced',p16<10000,p16);
   out.status=out.failures.length?'FAIL':'PASS';
-  window.v23012_5GpsBoardingPresentationQA=v23012_5GpsBoardingPresentationQA;
+  window.v23012_6GpsBoardingPresentationQA=v23012_6GpsBoardingPresentationQA;
   return out;
 }
-window.v23012_5GpsBoardingPresentationQA=v23012_5GpsBoardingPresentationQA;
+window.v23012_6GpsBoardingPresentationQA=v23012_6GpsBoardingPresentationQA;
 
 // QA hook: automatically available without affecting normal application flow.
 
 </script>
-<script>/* V230.12.5 airport GPS boarding guard QA */
+<script>/* V230.12.6 airport GPS boarding guard QA */
 (function(){
-  function v23012_5AirportBoardingGuardQA(){
+  function v23012_6AirportBoardingGuardQA(){
     const out={status:'PASS',failures:[],checks:{}};
     const fail=(k,d)=>{out.failures.push({check:k,detail:d});out.checks[k]=false;};
     const pass=k=>{out.checks[k]=true;};
@@ -5346,13 +5346,13 @@ window.v23012_5GpsBoardingPresentationQA=v23012_5GpsBoardingPresentationQA;
       if(mr && mw<=15 && mr.length && !routeHonorsStartMode(mr,'Marmaray')) fail('marmaray-start-mode','Marmaray candidate rejected by start-mode guard'); else pass('marmaray-start-mode');
     }
     out.status=out.failures.length?'FAIL':'PASS';
-    window.v23012_5AirportBoardingGuardQA=v23012_5AirportBoardingGuardQA;
+    window.v23012_6AirportBoardingGuardQA=v23012_6AirportBoardingGuardQA;
     return out;
   }
-  window.v23012_5AirportBoardingGuardQA=v23012_5AirportBoardingGuardQA;
+  window.v23012_6AirportBoardingGuardQA=v23012_6AirportBoardingGuardQA;
 })();
 </script>
-<script>/* V230.12.5-1000QA-FINAL focused QA */
+<script>/* V230.12.6-1000QA-FINAL focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
@@ -5538,26 +5538,31 @@ function v230AirportCorridorQA(){
   const out={name:'v230AirportCorridorQA',status:'PASS',checks:[]};
   const test=(id,ok,detail)=>{out.checks.push({id,ok,detail});if(!ok)out.status='FAIL';};
   const cases=[
-    ['pendik','M4 Metro',['M4 Metro','Marmaray','M2 Metro','M11 Metro']],
-    ['pendik','Marmaray',['Marmaray','M2 Metro','M11 Metro']],
-    ['uskudar','M5 Metro',['M5 Metro','Marmaray','M2 Metro','M11 Metro']],
-    ['bostanci','M8 Metro',['M8 Metro','Marmaray','M2 Metro','M11 Metro']],
-    ['gayrettepe','M2 Metro',['M2 Metro','M11 Metro']],
-    ['kagithane_hub','M7 Metro',['M7 Metro','M11 Metro']],
-    ['kayasehir_hub','M3 Metro',['M3 Metro','M11 Metro']]
+    ['pendik','M4 Metro',['M4 Metro','Marmaray','M2 Metro','M11 Metro'],false],
+    ['pendik','Marmaray',['Marmaray','M2 Metro','M11 Metro'],false],
+    ['uskudar','M5 Metro',['Marmaray','M2 Metro','M11 Metro'],true],
+    ['bostanci','M8 Metro',['Marmaray','M2 Metro','M11 Metro'],true],
+    ['gayrettepe','M2 Metro',['M11 Metro'],true],
+    ['kagithane_hub','M7 Metro',['M11 Metro'],true],
+    ['kayasehir_hub','M3 Metro',['M11 Metro'],true]
   ];
-  for(const [node,mode,expected] of cases){
+  for(const [node,mode,expectedPathModes,initialTransferExpected] of cases){
     const path=preferredAirportRailRouteFromStart(node,mode,'istanbul-airport');
+    const first=firstTransitJourneyMode(path);
     const modes=(path||[]).map(x=>x[2]).filter((m,i,a)=>i===0||m!==a[i-1]);
-    test(`${node}-${mode}`,JSON.stringify(modes)===JSON.stringify(expected)
+    const initialTransferOk=initialTransferExpected ? !!first?.initialTransfer && String(first.text||'').includes(mode.replace(/\s+Metro$/i,'')) : true;
+    test(`${node}-${mode}`,
+      JSON.stringify(modes)===JSON.stringify(expectedPathModes)
       && routeHonorsStartMode(path,mode)
       && hasCoherentRailPath(path)
-      && hasVerifiedTransitTransfers(path),
-      `expected=${expected.join('>')} actual=${modes.join('>')}`);
+      && hasVerifiedTransitTransfers(path)
+      && initialTransferOk,
+      `expectedPath=${expectedPathModes.join('>')} actual=${modes.join('>')} first=${JSON.stringify(first)}`);
   }
+  window.v230AirportCorridorQA=v230AirportCorridorQA;
   return out;
 }
-
+window.v230AirportCorridorQA=v230AirportCorridorQA;
 function v230StationNavigationCoordinateQA(){
   const out={status:'PASS',tests:[],failures:[],summary:{}};
   const add=(id,ok,detail)=>{out.tests.push({id,status:ok?'PASS':'FAIL',detail});if(!ok)out.failures.push({id,detail});};
@@ -5718,16 +5723,24 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230.12.5-1000QA-FINAL');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.12.6-1000QA-FINAL');
 })();
 
 function v227WalkingNavigationQA(){
-  const source=document.documentElement?.outerHTML||'';
-  const links=[...source.matchAll(/https:\/\/www\.google\.com\/maps\/dir\/\?api=1[^"'<>`]*/g)].map(m=>m[0]);
   const failures=[];
-  for(const u of links){
+  const checkUrl=(u)=>{
+    if(!u) return;
     if(/travelmode=walking/.test(u) && !/dir_action=navigate/.test(u)) failures.push('walking link missing dir_action=navigate');
     if(/travelmode=walking/.test(u) && /[?&]origin=/.test(u)) failures.push('walking link still contains origin');
+  };
+  const navTargets=[];
+  for(const [mode,line] of Object.entries(railLines||{})){
+    for(const node of (line.order||[])){
+      const d=stationNavigationDestination(node,mode);
+      const u=currentLocationWalkingNavUrl(d);
+      if(!d || !u) failures.push(`station-nav-missing:${mode}:${node}`);
+      else {checkUrl(u);navTargets.push({mode,node,destination:d});}
+    }
   }
   const targetAccessFailures=[];
   for(const [id,access] of Object.entries(touristAccess||{})){
@@ -5737,28 +5750,26 @@ function v227WalkingNavigationQA(){
       for(const step of steps){
         if(step?.[2]==='Son ulaşım' && !String(step?.[3]||'').includes('google.com/maps/dir/')) targetAccessFailures.push(id);
       }
-    }catch(e){ targetAccessFailures.push(`${id}: ${e.message}`); }
+    }catch(e){targetAccessFailures.push(`${id}: ${e.message}`);}
   }
   const startAccessFailures=[];
   for(const [id,cfg] of Object.entries(startLocalAccessRegistry||{})){
     if(cfg?.accessType!=='verified_walk') continue;
-    try{
-      const text=cfg.renderText?.()||'';
-      if(!String(text).includes('google.com/maps/dir/')) startAccessFailures.push(id);
-    }catch(e){ startAccessFailures.push(`${id}: ${e.message}`); }
+    try{const text=cfg.renderText?.()||'';if(!String(text).includes('google.com/maps/dir/')) startAccessFailures.push(id);}catch(e){startAccessFailures.push(`${id}: ${e.message}`);}
   }
   if(targetAccessFailures.length) failures.push(`target-access-navigation-missing:${targetAccessFailures.join(',')}`);
   if(startAccessFailures.length) failures.push(`start-access-navigation-missing:${startAccessFailures.join(',')}`);
   const result={
-    staticWalkingLinks:links.filter(u=>/travelmode=walking/.test(u)).length,
+    staticWalkingLinks:navTargets.length,
     targetAccessChecked:Object.keys(touristAccess||{}).length,
     targetAccessNavigationPass:Object.keys(touristAccess||{}).length-targetAccessFailures.length,
     startAccessChecked:Object.keys(startLocalAccessRegistry||{}).length,
     startAccessNavigationPass:Object.keys(startLocalAccessRegistry||{}).length-startAccessFailures.length,
-    currentLocationPattern: source.includes('destination=') && source.includes('dir_action=navigate'),
+    currentLocationPattern:typeof currentLocationWalkingNavUrl==='function' && currentLocationWalkingNavUrl('x').includes('travelmode=walking') && currentLocationWalkingNavUrl('x').includes('dir_action=navigate'),
     failures:[...new Set(failures)]
   };
   result.pass=result.failures.length===0;
+  result.status=result.pass?'PASS':'FAIL';
   return result;
 }
 </script>
