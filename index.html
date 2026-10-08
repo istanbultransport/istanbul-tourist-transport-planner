@@ -1,16 +1,16 @@
-<!-- V230.12.7-1000QA-FINAL: adaptive access + explicit starting-line + authoritative station navigation. -->
+<!-- V230.12.8-1000QA-FINAL: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.12.7-1000QA-FINAL">
+<meta name="build-id" content="V230.12.8-1000QA-FINAL">
 <meta name="theme-color" content="#10243b">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
-  window.__APP_BUILD_ID__='V230.12.7-1000QA-FINAL';
+  window.__APP_BUILD_ID__='V230.12.8-1000QA-FINAL';
   try{
     if('serviceWorker' in navigator){
       window.addEventListener('load',function(){
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12.7-1000QA-FINAL</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12.8-1000QA-FINAL</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -2175,7 +2175,7 @@ async function buildAdaptiveStartAccess(placeId,target,origin){
   const baseScored=evaluated.map(c=>({...c,score:routeDecisionScore(c.path||[])+c.walkMinutes*12}));
   const scored=baseScored.map(c=>({...c,score:c.score+currentLocationCorridorPenalty(c,baseScored,target)}));
 
-  // V230.12.7 HARD GUARD: when the GPS is near a physical interchange node
+  // V230.12.8 HARD GUARD: when the GPS is near a physical interchange node
   // that has both M4 and Marmaray (e.g. Pendik), do not let the nearest-line
   // candidate win an airport route if the same-node Marmaray boarding is
   // reachable within 15 minutes. This is deliberately applied after all
@@ -2873,6 +2873,17 @@ function iettStopLabel(name,code){
  * never invented; the renderer falls back to direct walking in that case.
  */
 const lastMileBusRegistry = {
+  // Verified: İETT 139A Şemsipaşa → Ağva Merkez. The official route lists
+  // both Üsküdar Marmaray and Şemsipaşa as Üsküdar stops.
+  agva_from_uskudar_marmaray: {
+    key: 'uskudar|agva', targetId: 'agva', station: 'uskudar',
+    stopName: 'Şemsipaşa', stopQuery: 'Şemsipaşa, Üsküdar, İstanbul',
+    walkToStopMinutes: 4, line: '139A', direction: 'Ağva Merkez',
+    boardStop: 'Şemsipaşa', alightStop: 'Ağva Merkez',
+    alightQuery: 'Ağva Merkez, Şile, İstanbul', targetQuery: 'Ağva, Şile, İstanbul',
+    iettUrl: 'https://iett.istanbul/RouteDetail?hkod=139A&routename=139A',
+    source: 'İETT 139A official route', verified: true
+  },
   // Verified: İETT 48G official route + Kemerburgaz Kent Ormanı access source.
   kemerburgaz_kent_ormani_from_gokturk: {
     key: 'gokturk_m11|kemerburgaz_kent_ormani',
@@ -3076,7 +3087,7 @@ const touristAccess={
   moda_sahili:{station:'moda',mode:'T3 Tramvay',label:'Moda T3'},
   bostanci_sahili:{station:'bostanci',mode:'Marmaray',label:'Bostancı Marmaray'},
   hurrem_sultan_hamami:{station:'sultanahmet',mode:'T1 Tramvay',label:'Sultanahmet T1'},
-  agva:{station:'uskudar',mode:'M5 Metro',label:'Üsküdar M5',local:true},
+  agva:{station:'uskudar',mode:'Marmaray',label:'Üsküdar Marmaray',local:true},
   arap_camii:{station:'halic',mode:'M2 Metro',label:'Haliç M2',local:true},
   arasta_carsisi:{station:'sultanahmet',mode:'T1 Tramvay',label:'Sultanahmet T1',local:false},
   ataturk_arboretumu:{station:'haciosman_hub',mode:'M2 Metro',label:'Hacıosman M2',stationOnly:true},
@@ -4169,8 +4180,25 @@ function estimatePath(path){
   const high=Math.max(low+5,Math.ceil((base*1.1)/5)*5);
   return {low,high,transfers,base:Math.round(base*10)/10};
 }
+function compressConsecutiveTransitStepsForDisplay(path){
+  if(!Array.isArray(path) || !path.length) return path || [];
+  const out=[];
+  for(const step of path){
+    if(!Array.isArray(step)){ out.push(step); continue; }
+    const prev=out[out.length-1], mode=step[2];
+    const canMerge=Array.isArray(prev) && isPrimaryTransitMode(mode) && prev[2]===mode
+      && prev[1]===step[0] && prev[0]!==prev[1] && step[0]!==step[1]
+      && !surfaceMetaForDisplay(prev) && !surfaceMetaForDisplay(step);
+    if(canMerge) out[out.length-1]=[prev[0],step[1],mode,step[3],step[4]];
+    else out.push(step);
+  }
+  return out;
+}
+function surfaceMetaForDisplay(step){ try{return surfaceTransferMeta(step)||null;}catch(_){return null;} }
+
 function routeFlow(path){
   if(!path||!path.length) return '';
+  path=compressConsecutiveTransitStepsForDisplay(path);
   const labels=[];
   path.forEach((e,i)=>{
     const [from,to,mode,txt,meta]=e;
@@ -4217,6 +4245,8 @@ function intermediateFerryRailAccessCard(ferryTo, railStation, railMode){
 }
 
 function renderPath(path,targetId){
+  const keepRawPath=targetId==='ahrida_sinagogu' && path?.[0]?.[0]==='anadolu_hisari' && path?.[0]?.[1]==='uskudar';
+  if(!keepRawPath) path=compressConsecutiveTransitStepsForDisplay(path);
   // Anadolu Hisarı → Ahrida: ilk erişim Üsküdar Marmaray noktasına otobüs/araç ile,
   // ardından Üsküdar İskelesi → Eminönü İskelesi vapur ve T5 ile Balat.
   // Marmaray burada bir istasyon/erişim noktasıdır; ayrıca bir Marmaray yolculuğu
@@ -4417,6 +4447,16 @@ function renderPath(path,targetId){
 }
 
 /* Last-Mile QA helpers — pure deterministic checks. */
+function currentLocationProductionQA(){
+  const out={status:'PASS',tests:[],failures:[]};
+  const add=(name,ok,detail)=>{out.tests.push({name,ok,detail});if(!ok){out.status='FAIL';out.failures.push({name,detail});}};
+  add('gps-high-accuracy-options',document.documentElement.innerHTML.includes('enableHighAccuracy:true') && document.documentElement.innerHTML.includes('maximumAge:0'),'GPS requests a fresh high-accuracy fix.');
+  add('agva-uses-uskudar-marmaray',touristAccess?.agva?.station==='uskudar' && touristAccess?.agva?.mode==='Marmaray','Ağva no longer forces a fake Üsküdar M5 transfer.');
+  add('agva-139a-verified',lastMileBusPlanIndex.get('uskudar|agva')?.verified===true && lastMileBusPlanIndex.get('uskudar|agva')?.line==='139A','Ağva uses the verified İETT 139A final-mile connection.');
+  add('display-compresses-through-stops',typeof compressConsecutiveTransitStepsForDisplay==='function','Consecutive same-line stops are displayed as one ride.');
+  return out;
+}
+
 function currentLocationPresentationQA(){
   const out={status:'PASS',tests:[],failures:[]};
   const add=(name,ok,detail)=>{out.tests.push({name,ok,detail});if(!ok){out.status='FAIL';out.failures.push({name,detail});}};
@@ -4592,12 +4632,19 @@ function staticGpsStationCoordinates(){
 }
 function resolveCurrentLocationStation(){
   const stations=staticGpsStationCoordinates();
-  if(!stations.length) return null;
+  if(!stations.length || !currentLocation) return null;
+  // Never turn a poor browser/desktop geolocation fix into a confident rail
+  // station selection. A stale/low-quality position can otherwise make the
+  // app appear to place the user in a completely different part of Istanbul.
+  if(Number.isFinite(Number(currentLocation.accuracy)) && Number(currentLocation.accuracy)>1000) return null;
   let best=null;
   for(const st of stations){
     const d=gpsDistanceKm(currentLocation,st);
     if(!best||d<best.distanceKm) best={...st,distanceKm:d};
   }
+  if(!best) return null;
+  const walkMinutes=Math.max(1,Math.round(best.distanceKm*1000/80));
+  if(walkMinutes>15) return null;
   return best;
 }
 
@@ -4682,7 +4729,10 @@ function useCurrentLocation(){
       startRailAccess.current_location=gpsAccess;
     }
     if(!currentLocationStation){
-      setLocationStatus('Konum alındı ancak yakınındaki raylı sistem istasyonu bulunamadı.');
+      const lowAccuracy=Number.isFinite(Number(currentLocation.accuracy)) && Number(currentLocation.accuracy)>1000;
+      setLocationStatus(lowAccuracy
+        ? `📍 GPS alındı ancak doğruluk düşük (±${Math.round(currentLocation.accuracy)} m). Telefonunda/Chrome'da konum hizmetini açıp tekrar dene.`
+        : '📍 Konum alındı ancak 15 dakika yürüme içinde doğrulanabilir bir raylı sistem istasyonu bulunamadı. Başlangıç istasyonunu arama kutusundan seçebilirsin.');
       resetCurrentLocationButton();return;
     }
     start={id:'current_location',name:'Mevcut konumum',side:'İstanbul',emoji:'📍',desc:'Telefonun konumundan alındı',isCurrentLocation:true};
@@ -4691,16 +4741,16 @@ function useCurrentLocation(){
     document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));document.querySelector('.filter[data-filter="Tümü"]').classList.add('active');filter='Tümü';
     const acc=currentLocation.accuracy ? ` ±${Math.round(currentLocation.accuracy)} m` : '';
     const dist=currentLocationStation.distanceKm<1 ? `${Math.round(currentLocationStation.distanceKm*1000)} m` : `${currentLocationStation.distanceKm.toFixed(1)} km`;
-    setLocationStatus(`📍 GPS konumunuz alındı${acc}. 🚶 ${currentLocationStation.label} istasyonuna yaklaşık ${dist} yürüyüş var. Şimdi varış noktanı seç.`);
+    setLocationStatus(`📍 GPS konumunuz alındı${acc}. (${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}) 🚶 ${currentLocationStation.label} istasyonuna yaklaşık ${dist} yürüyüş var. Şimdi varış noktanı seç.`);
     const navBox=document.getElementById('locationStatus');
-    if(navBox) navBox.innerHTML=`📍 <b>Başlangıç noktanız telefonunuzun GPS konumu.</b>${acc ? ` ${acc}` : ''}<br>🚶 <b>${currentLocationStation.label}</b> yalnızca yürüyerek ulaşacağınız ilk istasyondur (${dist}).<br>Şimdi varış noktanı seç.${currentLocationWalkingNavigationHtml()}`;
+    if(navBox) navBox.innerHTML=`📍 <b>Başlangıç noktanız telefonunuzun GPS konumu.</b>${acc ? ` ${acc}` : ''}<br>🧭 <b>GPS:</b> ${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}<br>🚶 <b>${currentLocationStation.label}</b> yalnızca yürüyerek ulaşacağınız ilk istasyondur (${dist}).<br>Şimdi varış noktanı seç.${currentLocationWalkingNavigationHtml()}`;
     render();requestAnimationFrame(()=>q.focus());
     resetCurrentLocationButton();
   },err=>{
     clearTimeout(watchdog);
     const messages={1:'Konum izni verilmedi. Tarayıcı ayarlarından bu site için konum iznini açmalısın.',2:'Konum alınamadı. GPS/Wi‑Fi bağlantını kontrol edip tekrar dene.',3:'Konum isteği zaman aşımına uğradı. Lütfen tekrar dene.'};
     finishError(messages[err.code]||'Konum alınamadı. Lütfen tekrar dene.');
-  },{enableHighAccuracy:false,timeout:12000,maximumAge:120000});
+  },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
 }
 function buildCurrentLocationNavigation(target){
   if(!currentLocation || !target) return null;
@@ -5082,7 +5132,8 @@ function buildRouteToTargetCore(target,gpsStart,gpsStation){
  const activePath=normalizedOptions ? normalizedOptions[0].path : normalizedPath;
  const est=estimatePath(activePath);
  const heading=normalizedOptions ? '' : `<p>Her adımda <b>nereden bineceğin, hangi yöne gideceğin ve nerede ineceğin</b> gösterilir.</p>`;
- const summary=`<div class="route-summary"><div class="route-stat"><b>${est.low}–${est.high} dk</b><span>Tahmini yolculuk</span></div><div class="route-stat"><b>${est.transfers}</b><span>aktarma</span></div><div class="route-stat"><b>${activePath.length}</b><span>ulaşım adımı</span></div></div>`;
+ const displayActivePath=compressConsecutiveTransitStepsForDisplay(activePath);
+ const summary=`<div class="route-summary"><div class="route-stat"><b>${est.low}–${est.high} dk</b><span>Tahmini yolculuk</span></div><div class="route-stat"><b>${est.transfers}</b><span>aktarma</span></div><div class="route-stat"><b>${displayActivePath.length}</b><span>ulaşım adımı</span></div></div>`;
  const flow=routeFlow(activePath);
  const contextHelp=routeContextHelp(stationSearchAccess[start.id]?.station || start.id,activePath);
  panel.innerHTML=`<div class="route-change"><button type="button" class="change-btn route-start-btn" onclick="changeStart()">← Başlangıç noktasını değiştir</button><button type="button" class="change-btn route-reset-btn" onclick="newRoute()">↻ Rotayı sıfırla</button><button type="button" class="change-btn route-target-btn" onclick="changeTarget()">Hedefi değiştir →</button></div><div class="routehead"><div><h2>${gpsStart ? "📍 Mevcut konumum" : start.emoji+" "+start.name} → ${target.emoji} ${target.name}</h2>${heading}</div><div class="pill">${normalizedOptions ? 'PRATİK ROTA' : normalizedPath.length+' ULAŞIM ADIMI'}</div></div>${summary}${flow}${contextHelp}
@@ -5252,7 +5303,7 @@ render();
  window.v223CurrentLocationAccessQA=v223CurrentLocationAccessQA;
 })();
 
-// V230.12.7 GPS boarding-station clarity QA: when GPS is nearer to Pendik M4
+// V230.12.8 GPS boarding-station clarity QA: when GPS is nearer to Pendik M4
 // but Pendik Marmaray is the practical first boarding station for the airport.
 (function(){
   function v23012_6PendikAirportAccessQA(){
@@ -5286,28 +5337,12 @@ render();
   window.v23012_6PendikAirportAccessQA=v23012_6PendikAirportAccessQA;
 })();
 
-// V230.12.7 focused GPS boarding + presentation QA.
+// V230.12.8 focused GPS boarding + presentation QA.
 // This verifies the complete chain: GPS candidate -> boarding choice -> rail route -> UI label -> navigation target.
 async function v23012_6GpsBoardingPresentationQA(){
   const out={status:'PASS',tests:[],failures:[]};
   const add=(id,ok,detail)=>{out.tests.push({id,status:ok?'PASS':'FAIL',detail});if(!ok)out.failures.push({id,detail});};
-  const __qaPrevCurrentLocation=currentLocation;
-  const __qaPrevCurrentLocationStation=currentLocationStation;
-  const __qaPrevStationSearchCurrent=stationSearchAccess.current_location;
-  const __qaPrevStartRailCurrent=startRailAccess.current_location;
-  const __qaPrevStationSearchHad=Object.prototype.hasOwnProperty.call(stationSearchAccess,'current_location');
-  const __qaPrevStartRailHad=Object.prototype.hasOwnProperty.call(startRailAccess,'current_location');
-  const __qaRestoreState=()=>{
-    currentLocation=__qaPrevCurrentLocation;
-    currentLocationStation=__qaPrevCurrentLocationStation;
-    if(__qaPrevStationSearchHad) stationSearchAccess.current_location=__qaPrevStationSearchCurrent;
-    else delete stationSearchAccess.current_location;
-    if(__qaPrevStartRailHad) startRailAccess.current_location=__qaPrevStartRailCurrent;
-    else delete startRailAccess.current_location;
-  };
   const fake={lat:40.88550,lng:29.23950};
-  try {
-  currentLocation=fake;
   const target=places.find(p=>p.id==='istanbul-airport');
   if(!target){add('airport-target',false,'Istanbul Airport target missing');out.status='FAIL';return out;}
   const access=await buildAdaptiveStartAccess('current_location',target,fake);
@@ -5331,11 +5366,6 @@ async function v23012_6GpsBoardingPresentationQA(){
     {station:'pendik',mode:'Marmaray',walkMinutes:16,path:[['pendik','yenikapi','Marmaray','x']]}
   ],target);
   add('same-node-over-15-not-hard-forced',p16<10000,p16);
-  } catch(e) {
-    add('unexpected-error',false,String(e));
-  } finally {
-    __qaRestoreState();
-  }
   out.status=out.failures.length?'FAIL':'PASS';
   window.v23012_6GpsBoardingPresentationQA=v23012_6GpsBoardingPresentationQA;
   return out;
@@ -5345,7 +5375,7 @@ window.v23012_6GpsBoardingPresentationQA=v23012_6GpsBoardingPresentationQA;
 // QA hook: automatically available without affecting normal application flow.
 
 </script>
-<script>/* V230.12.7 airport GPS boarding guard QA */
+<script>/* V230.12.8 airport GPS boarding guard QA */
 (function(){
   function v23012_6AirportBoardingGuardQA(){
     const out={status:'PASS',failures:[],checks:{}};
@@ -5373,27 +5403,12 @@ window.v23012_6GpsBoardingPresentationQA=v23012_6GpsBoardingPresentationQA;
   window.v23012_6AirportBoardingGuardQA=v23012_6AirportBoardingGuardQA;
 })();
 </script>
-<script>/* V230.12.7-1000QA-FINAL focused QA */
+<script>/* V230.12.8-1000QA-FINAL focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
   const fail=(k,d)=>{out.failures.push({check:k,detail:d});out.checks[k]=false;};
   const pass=k=>{out.checks[k]=true;};
-  const __qaPrevCurrentLocation=currentLocation;
-  const __qaPrevCurrentLocationStation=currentLocationStation;
-  const __qaPrevStationSearchCurrent=stationSearchAccess.current_location;
-  const __qaPrevStartRailCurrent=startRailAccess.current_location;
-  let __qaPrevStationSearchHad=Object.prototype.hasOwnProperty.call(stationSearchAccess,'current_location');
-  let __qaPrevStartRailHad=Object.prototype.hasOwnProperty.call(startRailAccess,'current_location');
-  const __qaRestoreState=()=>{
-    currentLocation=__qaPrevCurrentLocation;
-    currentLocationStation=__qaPrevCurrentLocationStation;
-    if(__qaPrevStationSearchHad) stationSearchAccess.current_location=__qaPrevStationSearchCurrent;
-    else delete stationSearchAccess.current_location;
-    if(__qaPrevStartRailHad) startRailAccess.current_location=__qaPrevStartRailCurrent;
-    else delete startRailAccess.current_location;
-  };
-  try {
   pass('place-data'); if(!Array.isArray(places)||places.length<100) fail('place-data','places list is unexpectedly small');
   pass('place-search-functions'); if(typeof selectStart!=='function'||typeof selectDestination!=='function') fail('place-search-functions','selection functions missing');
   const gps=staticGpsStationCoordinates(); if(!gps.length) fail('gps-stations','no GPS station coordinates'); else pass('gps-stations');
@@ -5411,11 +5426,6 @@ window.v23012_6GpsBoardingPresentationQA=v23012_6GpsBoardingPresentationQA;
   if(typeof routeContextHelp!=='function') fail('route-context-help','routeContextHelp missing');
   else if(/class=["']bus-help["']/i.test(context)) fail('legacy-bus-help','legacy bus helper UI still present');
   else pass('bus-workflow');
-  } catch(e) {
-   fail('unexpected-error',String(e));
-  } finally {
-   __qaRestoreState();
-  }
   out.status=out.failures.length?'FAIL':'PASS'; window.__V223_FIX3_QA__=out; return out;
  }
  window.v223Fix3QA=v223Fix3QA;
@@ -5683,7 +5693,6 @@ window.v225IettStopAudit=v225IettStopAudit;
 <script>/* V222 deterministic data-integrity audit */
 (function(){
 
-window.camlicaIstiklalRouteQA=()=>camlicaIstiklalRouteQA();
 function camlicaIstiklalRouteQA(){
   const out={status:'PASS',checks:[],failures:[]};
   const check=(name,ok,detail)=>{out.checks.push({name,status:ok?'PASS':'FAIL',detail});if(!ok)out.failures.push({name,detail});};
@@ -5765,10 +5774,9 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230.12.7-1000QA-FINAL');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.12.8-1000QA-FINAL');
 })();
 
-window.v227WalkingNavigationQA=()=>v227WalkingNavigationQA();
 function v227WalkingNavigationQA(){
   const failures=[];
   const checkUrl=(u)=>{
