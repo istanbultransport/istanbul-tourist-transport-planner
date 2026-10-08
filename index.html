@@ -954,12 +954,111 @@ function currentLocationWalkingNavLink(destination,label='🚶 Yürü — hedefe
   return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;padding:10px 12px;border-radius:10px;background:#eef6ff;border:1px solid #cfe1f5;color:#1559aa;font-weight:900;text-decoration:none">${label}</a>`;
 }
 
-function walkingNavigationForNode(nodeId,label='🚶 Yürü — hedefe navigasyonu aç'){
-  const place=places.find?.(p=>p.id===nodeId);
-  const destination=(place && Number.isFinite(Number(place.lat)) && Number.isFinite(Number(place.lng)))
-    ? `${place.lat},${place.lng}`
-    : `${nodeLabel(nodeId)}, İstanbul`;
-  return currentLocationWalkingNavLink(destination,label);
+/*
+ * Station walking-navigation destination layer.
+ *
+ * Problem fixed in V230.1:
+ * A rail station node is not necessarily a place card. The old implementation
+ * therefore fell back to `nodeLabel(nodeId)`, which made Google Maps geocode
+ * ambiguous strings such as `Pendik` instead of the physical station.
+ *
+ * Resolution order:
+ *  1) exact local station coordinate (static, audited where available)
+ *  2) exact live Metro Istanbul station coordinate from the IBB API
+ *  3) an explicit station+line Google Maps query, never a bare district name
+ */
+const stationNavigationLiveCache=new Map();
+let stationNavigationLivePromise=null;
+function stationModeKey(mode,nodeId){return `${String(mode||'').trim()}|${String(nodeId||'').trim()}`;}
+function stationNavigationLabel(nodeId,modeHint){
+  if(modeHint && railLines?.[modeHint]?.labels?.[nodeId]) return railLines[modeHint].labels[nodeId];
+  const hit=stationSearchIndex?.find?.(x=>x.node===nodeId && (!modeHint || x.mode===modeHint));
+  if(hit?.label) return hit.label;
+  return nodeLabel(nodeId);
+}
+function stationNavigationQuery(nodeId,modeHint){
+  const label=stationNavigationLabel(nodeId,modeHint);
+  const mode=String(modeHint||'').trim();
+  let suffix='İstasyonu';
+  if(mode==='Marmaray') suffix='Marmaray İstasyonu';
+  else if(mode==='Metrobüs') suffix='Metrobüs Durağı';
+  else if(mode.includes('Tramvay')) suffix='Tramvay Durağı';
+  else if(mode.includes('Füniküler')) suffix='Füniküler İstasyonu';
+  else if(mode.includes('Teleferik')) suffix='Teleferik İstasyonu';
+  else if(mode.includes('Metro')) suffix='Metro İstasyonu';
+  return `${label} ${suffix}, İstanbul`;
+}
+function staticStationNavigationCoordinate(nodeId,modeHint){
+  if(typeof staticGpsStationCoordinates!=='function') return null;
+  const rows=staticGpsStationCoordinates();
+  const row=modeHint
+    ? rows.find(x=>x.station===nodeId && x.mode===modeHint)
+    : rows.find(x=>x.station===nodeId);
+  if(!row || !Number.isFinite(Number(row.lat)) || !Number.isFinite(Number(row.lng))) return null;
+  return {lat:Number(row.lat),lng:Number(row.lng),source:'static-gps-station-registry',mode:row.mode,label:row.label};
+}
+async function ensureStationNavigationLiveCoordinates(){
+  if(stationNavigationLivePromise) return stationNavigationLivePromise;
+  stationNavigationLivePromise=(async()=>{
+    try{
+      if(typeof fetchGpsStationCoordinates!=='function') return [];
+      const rows=await fetchGpsStationCoordinates();
+      for(const row of rows||[]){
+        if(!Number.isFinite(Number(row?.lat))||!Number.isFinite(Number(row?.lng))) continue;
+        stationNavigationLiveCache.set(stationModeKey(row.mode,row.station),row);
+      }
+      return rows||[];
+    }catch(_){return [];}
+  })();
+  return stationNavigationLivePromise;
+}
+function stationNavigationDestination(nodeId,modeHint){
+  const local=staticStationNavigationCoordinate(nodeId,modeHint);
+  if(local) return `${local.lat},${local.lng}`;
+  const live=stationNavigationLiveCache.get(stationModeKey(modeHint,nodeId)) || stationNavigationLiveCache.get(stationModeKey('',nodeId));
+  if(live && Number.isFinite(Number(live.lat)) && Number.isFinite(Number(live.lng))) return `${Number(live.lat)},${Number(live.lng)}`;
+  return stationNavigationQuery(nodeId,modeHint);
+}
+function walkingNavigationForNode(nodeId,label='🚶 Yürü — hedefe navigasyonu aç',modeHint=null){
+  const destination=stationNavigationDestination(nodeId,modeHint);
+  const url=currentLocationWalkingNavUrl(destination);
+  if(!url) return '';
+  const dataMode=modeHint?` data-station-mode="${String(modeHint).replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"`:'';
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer" data-station-nav="${String(nodeId).replace(/"/g,'&quot;')}"${dataMode} style="display:inline-block;margin-top:8px;padding:10px 12px;border-radius:10px;background:#eef6ff;border:1px solid #cfe1f5;color:#1559aa;font-weight:900;text-decoration:none">${label}</a>`;
+}
+
+/* If the IBB station API resolves a more authoritative live coordinate after
+ * initial render, intercept the click once and open Google Maps with the exact
+ * coordinate. This removes dependence on Google's text geocoder for station
+ * names while preserving the current-device location as the origin. */
+/* Warm the live station registry in the background. Navigation never waits for
+ * this request during normal rendering; the click handler still has its own
+ * fallback if the service is unavailable. */
+try{ ensureStationNavigationLiveCoordinates(); }catch(_){ }
+
+if(!window.__stationNavigationClickBound){
+  window.__stationNavigationClickBound=true;
+  document.addEventListener('click',async(ev)=>{
+    const a=ev.target?.closest?.('a[data-station-nav]');
+    if(!a) return;
+    const nodeId=a.getAttribute('data-station-nav');
+    const mode=a.getAttribute('data-station-mode')||'';
+    if(!nodeId) return;
+    const local=staticStationNavigationCoordinate(nodeId,mode);
+    if(local) return; // already exact; normal browser navigation is ideal.
+    ev.preventDefault();
+    /* Open synchronously to avoid popup blockers; resolve the exact station
+       coordinate asynchronously and then navigate the already-open tab. */
+    const popup=window.open('about:blank','_blank');
+    const rows=await ensureStationNavigationLiveCoordinates();
+    const live=(rows||[]).find(x=>x.station===nodeId && x.mode===mode);
+    const destination=live && Number.isFinite(Number(live.lat)) && Number.isFinite(Number(live.lng))
+      ? `${Number(live.lat)},${Number(live.lng)}`
+      : stationNavigationQuery(nodeId,mode);
+    const url=currentLocationWalkingNavUrl(destination);
+    if(popup && !popup.closed) popup.location.href=url;
+    else window.location.href=url;
+  });
 }
 
 function exitNavigationHtml(station,targetId){
@@ -3757,7 +3856,7 @@ function renderPath(path,targetId){
     // gösterir; BİN/YÖN/İN kartı oluşturulmaz. Alternatif otobüs ve araç
     // uygulamaları aynı yürüyüş kartının içinde gösterilir.
     if(i===0 && from==='aqua_florya' && to==='florya_akvaryum_m' && mode==='Yürüyüş'){
-      return `<div class="step now"><div class="num">1</div><div><span class="step-badge">ŞİMDİ</span><h3>🚶 Aqua Florya → Florya Akvaryum Marmaray</h3><p style="margin-top:10px;line-height:1.65">🚶 <b>Yaklaşık 5 dakika yürüyebilirsiniz.</b><br>Aqua Florya'dan Florya Akvaryum Marmaray istasyonuna yürüyerek ulaşabilirsiniz.<br><br>${walkingNavigationForNode('florya_akvaryum_m')}<br>🚌 <b>Otobüsle devam edebilirsiniz.</b><br>🚕 <b>${rideAppSentence()}</b></p></div></div>`;
+      return `<div class="step now"><div class="num">1</div><div><span class="step-badge">ŞİMDİ</span><h3>🚶 Aqua Florya → Florya Akvaryum Marmaray</h3><p style="margin-top:10px;line-height:1.65">🚶 <b>Yaklaşık 5 dakika yürüyebilirsiniz.</b><br>Aqua Florya'dan Florya Akvaryum Marmaray istasyonuna yürüyerek ulaşabilirsiniz.<br><br>${walkingNavigationForNode('florya_akvaryum_m','🚶 Yürü — hedefe navigasyonu aç','Marmaray')}<br>🚌 <b>Otobüsle devam edebilirsiniz.</b><br>🚕 <b>${rideAppSentence()}</b></p></div></div>`;
     }
 
     const fromPlace=places.find(p=>p.id===from);
@@ -3824,7 +3923,7 @@ function renderPath(path,targetId){
       const minutes=ferryRailTransferWalkMinutesFor(from,to);
       if(Number.isFinite(Number(minutes)) && Number(minutes)>0){
         const station=stepNodeLabel(to,nextMode);
-        return `<div class=\"step ${i===0?'now':''}\"><div class=\"num\">${i+1}</div><div><span class=\"step-badge\">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><p style=\"margin-top:10px;line-height:1.65\"><b>📍 Şu an ${station} istasyonuna ulaşmanız gerekiyor.</b><br><br>🚶 <b>Yaklaşık ${minutes} dakika yürüyebilirsiniz.</b><br>${walkingNavigationForNode(to,'🚶 Yürü — istasyona navigasyonu aç')}<br>🚌 <b>Otobüsle devam edebilirsiniz.</b><br>🚕 <b>${rideAppSentence()}</b></p></div></div>`;
+        return `<div class=\"step ${i===0?'now':''}\"><div class=\"num\">${i+1}</div><div><span class=\"step-badge\">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><p style=\"margin-top:10px;line-height:1.65\"><b>📍 Şu an ${station} istasyonuna ulaşmanız gerekiyor.</b><br><br>🚶 <b>Yaklaşık ${minutes} dakika yürüyebilirsiniz.</b><br>${walkingNavigationForNode(to,'🚶 Yürü — istasyona navigasyonu aç',nextMode||mode)}<br>🚌 <b>Otobüsle devam edebilirsiniz.</b><br>🚕 <b>${rideAppSentence()}</b></p></div></div>`;
       }
     }
     const surfaceMeta=surfaceTransferMeta(path[i]);
@@ -3837,7 +3936,7 @@ function renderPath(path,targetId){
       const walkText=surfaceMeta.walkMinutes!==null && surfaceMeta.walkMinutes!==undefined && Number.isFinite(Number(surfaceMeta.walkMinutes)) ? `Yaklaşık ${surfaceMeta.walkMinutes} dakika yürüyebilirsiniz.` : 'Yüzey bağlantısının süresi hedef bağlantıya göre değişebilir.';
       const targetLineLabel=surfaceMeta.label || stepTitle(mode);
       const targetSuffix=/bağlantısı$/i.test(targetLineLabel) ? '' : ' bağlantısına';
-      return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>🚶 Yüzey bağlantısı</h3><p style="margin-top:10px;line-height:1.65"><b>${stepNodeLabel(from,stationSearchAccess[start.id]?.mode||mode)}</b> noktasından <b>${targetLineLabel}</b>${targetSuffix} geç.</p><p style="margin-top:8px">🚶 <b>${walkText}</b><br>${walkingNavigationForNode(to, '🚶 Yürü — aktarmaya navigasyonu aç')}<br>ℹ️ <b>${transferDifficulty}</b></p></div></div>`;
+      return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>🚶 Yüzey bağlantısı</h3><p style="margin-top:10px;line-height:1.65"><b>${stepNodeLabel(from,stationSearchAccess[start.id]?.mode||mode)}</b> noktasından <b>${targetLineLabel}</b>${targetSuffix} geç.</p><p style="margin-top:8px">🚶 <b>${walkText}</b><br>${walkingNavigationForNode(to, '🚶 Yürü — aktarmaya navigasyonu aç',nextMode||mode)}<br>ℹ️ <b>${transferDifficulty}</b></p></div></div>`;
     }
     // Aynı fiziksel düğümdeki istasyon-içi aktarma bir 'bin-in' yolculuğu
     // değildir. Örn. Hisarüstü M6 → F4 adımını F4'e binip aynı istasyonda
@@ -3892,7 +3991,7 @@ function renderPath(path,targetId){
       const walkSummary = walkMins
         ? `<p style="margin-top:10px"><b>${fromLabel}</b> → <b>${toLabel}</b><br>Yaklaşık <b>${walkMins} dakika</b> yürü.</p>`
         : `<p style="margin-top:10px"><b>${fromLabel}</b> → <b>${toLabel}</b><br>Yürüyerek ulaş.</p>`;
-      return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>${icons[mode]||'🚶'} ${modeTitle}</h3>${walkSummary}<div style="margin-top:8px">${walkingNavigationForNode(to)}</div>${action}</div></div>`;
+      return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>${icons[mode]||'🚶'} ${modeTitle}</h3>${walkSummary}<div style="margin-top:8px">${walkingNavigationForNode(to,undefined,mode)}</div>${action}</div></div>`;
     }
     return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><h3>${icons[mode]||'🚉'} ${modeTitle}</h3><div class="route-detail"><div class="info"><span class="label">📍 Bin</span><span class="value">${displayFromLabel}</span></div><div class="info"><span class="label">➡️ Yön</span><span class="value">${direction}</span></div><div class="info"><span class="label">🛑 İn</span><span class="value">${displayToLabel}</span></div></div>${explanation ? `<p style="margin-top:10px">${explanation}</p>` : ''}${action}${ferryRailAccessCard}</div></div>`;
   }).join('');
@@ -4839,6 +4938,35 @@ function deepRouteRegressionQA(){
  out.status=out.failures.length?'FAIL':'PASS'; out.total=Object.values(out.categories).reduce((n,c)=>n+c.tests,0); out.pass=Object.values(out.categories).reduce((n,c)=>n+c.pass,0); out.fail=out.failures.length; out.multiStationCount=multi.length; out.sampleRouteCount=samples.length; window.__DEEP_REGRESSION__=out; return out;
 }
 window.deepRouteRegressionQA=deepRouteRegressionQA;
+})();
+</script>
+<script>/* V230.1 station navigation / coordinate integrity QA */
+(function(){
+ function v230StationNavigationCoordinateQA(){
+  const out={status:'PASS',tests:[],failures:[],summary:{}};
+  const add=(id,ok,detail)=>{out.tests.push({id,status:ok?'PASS':'FAIL',detail});if(!ok)out.failures.push({id,detail});};
+  const railEntries=[];
+  for(const [mode,line] of Object.entries(railLines||{})){
+    for(const node of (line.order||[])) railEntries.push({mode,node,label:line.labels?.[node]||nodeLabel(node)});
+  }
+  const unique=[]; const seen=new Set();
+  for(const x of railEntries){const k=stationModeKey(x.mode,x.node);if(!seen.has(k)){seen.add(k);unique.push(x);}}
+  const coordRows=typeof staticGpsStationCoordinates==='function'?staticGpsStationCoordinates():[];
+  const exact=unique.filter(x=>!!staticStationNavigationCoordinate(x.node,x.mode));
+  const fallback=unique.filter(x=>!staticStationNavigationCoordinate(x.node,x.mode));
+  const badStatic=coordRows.filter(x=>!Number.isFinite(Number(x.lat))||!Number.isFinite(Number(x.lng))||Number(x.lat)<40||Number(x.lat)>42||Number(x.lng)<27||Number(x.lng)>31);
+  add('all-rail-stations-have-navigation-target',unique.every(x=>!!stationNavigationDestination(x.node,x.mode)),{total:unique.length});
+  add('static-coordinate-range',badStatic.length===0,{bad:badStatic});
+  add('no-bare-district-fallback',unique.every(x=>stationNavigationQuery(x.node,x.mode).includes(x.label||x.node)),{checked:unique.length});
+  const sample=['pendik|M4 Metro','pendik|Marmaray','kadikoy|M4 Metro','ayrilik|Marmaray','gayrettepe|M2 Metro','istanbul-airport|M11 Metro'];
+  const sampleOut=sample.map(k=>{const [node,mode]=k.split('|');return {k,destination:stationNavigationDestination(node,mode),query:stationNavigationQuery(node,mode)}});
+  add('critical-station-destinations',sampleOut.every(x=>x.destination&&x.destination!=='undefined,undefined'),sampleOut);
+  out.summary={uniqueRailStationModePairs:unique.length,exactStaticCoordinates:exact.length,liveOrQueryFallback:fallback.length,staticCoordinateRows:coordRows.length};
+  window.__STATION_NAVIGATION_QA__=out;
+  return out;
+ }
+ window.v230StationNavigationCoordinateQA=v230StationNavigationCoordinateQA;
+ try{v230StationNavigationCoordinateQA();}catch(_){ }
 })();
 </script>
 <script>/* V230 explicit-start integrity QA */
