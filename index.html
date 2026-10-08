@@ -1,4 +1,4 @@
-<!-- V230-COORDINATE-QA-ADAPTIVE-START: coordinate resolution + adaptive access build. -->
+<!-- V230-ROUTE-QA-START-INTEGRITY: adaptive access + explicit starting-line integrity. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2071,7 +2071,7 @@ function adaptiveStartAccessSteps(placeId,access){
   if(access?.type==='walk'){
     const destination=(Number.isFinite(Number(access.lat))&&Number.isFinite(Number(access.lng))) ? `${access.lat},${access.lng}` : `${access.label}, İstanbul`;
     const nav=currentLocationWalkingNavUrl(destination);
-    return [[placeId,access.station,'Yürüyüş',`🚶 <b>${from}</b> noktasından <b>${access.label}</b> istasyonuna yaklaşık <b>${Math.round(access.walkMinutes)} dakika</b> yürüyün.<br>${nav ? `<a class="current-location-nav" href="${nav}" target="_blank" rel="noopener noreferrer">🚶 Yürü — istasyona navigasyonu aç</a>`:''}`]];
+    return [[placeId,access.station,'Yürüyüş',`🚶 <b>${from}</b> noktasından <b>${access.label}</b> istasyonuna yaklaşık <b>${Math.round(access.walkMinutes)} dakika</b> yürüyün.<br>${nav ? `<a class="current-location-nav" href="${nav}" target="_blank" rel="noopener noreferrer">🚶 Yürü — istasyona navigasyonu aç</a>`:''}`,{adaptiveStartWalk:true,walkMinutes:Number(access.walkMinutes),walkSource:access.walkSource||null}]];
   }
   if(access?.type==='feeder' && access.feeder){
     const nav=currentLocationWalkingNavUrl(access.stopQuery);
@@ -3171,6 +3171,36 @@ function stadiumRouteCandidates(a,b,maxTransfers=4){
     return path ? {path,opt,cost:routeQuality(path),idx} : null;
   }).filter(Boolean);
 }
+function firstTransitJourneyMode(path){
+  const accessModes=new Set(['Yürüyüş','İlçe içi ulaşım','Yerel ulaşım','Son ulaşım']);
+  let sawTransit=false;
+  for(const step of path||[]){
+    if(!Array.isArray(step)) continue;
+    const mode=String(step[2]||'');
+    if(accessModes.has(mode)) continue;
+    const transferMeta=surfaceTransferMeta(step);
+    const sameNodeTransfer=step[0]===step[1] && !!transferMeta;
+    if(sameNodeTransfer && !sawTransit){
+      const text=String(step[3]||'');
+      return {mode,initialTransfer:true,text,verified:transferMeta?.verified!==false};
+    }
+    sawTransit=true;
+    return {mode,initialTransfer:false,text:String(step[3]||''),verified:true};
+  }
+  return null;
+}
+function routeHonorsStartMode(path,startMode){
+  if(!startMode || startMode==='Pendik YHT') return true;
+  const first=firstTransitJourneyMode(path);
+  if(!first) return false;
+  if(first.mode===startMode) return true;
+  if(first.initialTransfer && first.verified){
+    const normalizedMode=String(startMode).replace(/\s+Metro$/i,'').trim();
+    return first.text.includes(startMode) || (normalizedMode && first.text.includes(normalizedMode));
+  }
+  return false;
+}
+
 minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOverride=null){
   // Fiziksel düğüm aynıysa rota motoru yapay bir "aynı istasyonda tekrar
   // aktarma" adımı üretmemeli. Özellikle çok hatlı istasyonlarda wrapper'ın
@@ -3260,6 +3290,16 @@ minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOve
       });
       result=candidates[0].path;
     }
+  }
+  // HARD GUARD: an explicit starting line must match the first actual
+  // transit leg. A different first line is allowed only when the route starts
+  // with a verified same-station transfer from the selected line. This prevents
+  // the adaptive GPS layer from displaying "Pendik M4" while silently
+  // boarding Marmaray at Pendik.
+  if(result && startModeOverride && isKnownRailStationNode(a) && railLines[startModeOverride]?.order.includes(a)
+     && !routeHonorsStartMode(result,startModeOverride)){
+    console.warn('[route-guard] Explicit start line mismatch rejected',{a,b,startModeOverride,result});
+    result=null;
   }
   railRouteCache.set(key,result);
   return result;
@@ -3845,8 +3885,9 @@ function renderPath(path,targetId){
     if(mode==='İlçe içi ulaşım' && i===0 && /^<b>📍 .* bölgesinden .* ulaş\.<\/b><br><br>🚌/.test(String(text||''))){
       return `<div class="step ${i===0?'now':''}"><div class="num">${i+1}</div><div><span class="step-badge">${i===0?'ŞİMDİ':'SIRADAKİ'}</span><p style="margin-top:10px;line-height:1.65">${text}</p></div></div>`;
     }
-    const walkMins=mode==='Yürüyüş' ? touristWalkTime(from,to) : null;
-    const modeTitle=walkMins ? `Yürüyüş — yaklaşık ${walkMins} dk` : mode;
+    const explicitWalkMins=(e[4] && Number.isFinite(Number(e[4].walkMinutes))) ? Number(e[4].walkMinutes) : null;
+    const walkMins=mode==='Yürüyüş' ? (touristWalkTime(from,to) ?? explicitWalkMins) : null;
+    const modeTitle=walkMins ? `Yürüyüş — yaklaşık ${Math.round(walkMins)} dk` : mode;
     if(mode==='Yürüyüş'){
       const walkSummary = walkMins
         ? `<p style="margin-top:10px"><b>${fromLabel}</b> → <b>${toLabel}</b><br>Yaklaşık <b>${walkMins} dakika</b> yürü.</p>`
@@ -4381,7 +4422,7 @@ function buildRouteToTargetCore(target,gpsStart,gpsStation){
    : null;
  const forcedRoute=(stationTargetPath || explicitStartRoute) ? null : (anatolianToAirportRailRoute(startNode,target.id) || specialFerryTouristRoute(startNode,target.id));
  const airportPreferred=(stationTargetPath || explicitStartRoute) ? null : (forcedRoute ? null : airportToAnatolianRailRoute(startNode,target.id));
- const options=(stationTargetPath || explicitStartRoute || forcedRoute || airportPreferred) ? null : alternativeRoutes(startNode,target.id);
+ const options=(stationTargetPath || explicitStartRoute || forcedRoute || airportPreferred || selectedStartMode) ? null : alternativeRoutes(startNode,target.id);
  const path=stationTargetPath || explicitStartRoute || forcedRoute || airportPreferred || (options ? null : (selectedStartMode ? null : route(startNode,target.id)));
  const panel=document.getElementById('route');
  if(!options && !path){
@@ -4427,8 +4468,11 @@ function buildRouteToTargetCore(target,gpsStart,gpsStation){
    if(gpsStation.adaptiveStart && Array.isArray(gpsStation.prefixPath)){
      normalizedPath=[...gpsStation.prefixPath,...normalizedPath];
    }else{
-     const walkText=`<b>Mevcut konumundan</b> <b>${gpsStation.label}</b> istasyonuna yürü. Yaklaşık mesafe: <b>${gpsStation.distanceKm<1?Math.round(gpsStation.distanceKm*1000)+' m':gpsStation.distanceKm.toFixed(1)+' km'}</b>.<br>${currentLocationWalkingNavigationHtmlForStation(gpsStation)}`;
-     normalizedPath=[['current_location',gpsStation.station,'Yürüyüş',walkText],...normalizedPath];
+     const exactWalkMinutes=Number.isFinite(Number(gpsStation.walkMinutes)) && !!gpsStation.walkSource ? Math.round(Number(gpsStation.walkMinutes)) : null;
+     const walkText=exactWalkMinutes
+       ? `<b>Mevcut konumundan</b> <b>${gpsStation.label}</b> istasyonuna yaklaşık <b>${exactWalkMinutes} dakika</b> yürü.`
+       : `<b>Mevcut konumundan</b> <b>${gpsStation.label}</b> istasyonuna yürü. Yaklaşık mesafe: <b>${gpsStation.distanceKm<1?Math.round(gpsStation.distanceKm*1000)+' m':gpsStation.distanceKm.toFixed(1)+' km'}</b>.`;
+     normalizedPath=[['current_location',gpsStation.station,'Yürüyüş',walkText,{adaptiveStartWalk:true,walkMinutes:exactWalkMinutes,walkSource:gpsStation.walkSource||null}],...normalizedPath];
    }
   }
 
@@ -4795,6 +4839,30 @@ function deepRouteRegressionQA(){
  out.status=out.failures.length?'FAIL':'PASS'; out.total=Object.values(out.categories).reduce((n,c)=>n+c.tests,0); out.pass=Object.values(out.categories).reduce((n,c)=>n+c.pass,0); out.fail=out.failures.length; out.multiStationCount=multi.length; out.sampleRouteCount=samples.length; window.__DEEP_REGRESSION__=out; return out;
 }
 window.deepRouteRegressionQA=deepRouteRegressionQA;
+})();
+</script>
+<script>/* V230 explicit-start integrity QA */
+(function(){
+ function v230StartModeIntegrityQA(){
+  const out={status:'PASS',tests:[],failures:[]};
+  const test=(id,ok,detail)=>{out.tests.push({id,status:ok?'PASS':'FAIL',detail});if(!ok){out.failures.push({id,detail});out.status='FAIL';}};
+  const cases=[
+   ['pendik-airport-M4','pendik','istanbul-airport','M4 Metro'],
+   ['pendik-erenkoy-Marmaray','pendik','erenkoy','Marmaray'],
+   ['kadikoy-sirkeci-M4','kadikoy','sirkeci','M4 Metro'],
+   ['kozyatagi-umraniye-M4','kozyatagi','umraniye','M4 Metro']
+  ];
+  for(const [id,a,b,mode] of cases){
+   let p=null;try{p=minimumRailRoute(a,b,4,null,mode)}catch(e){test(id,false,String(e));continue;}
+   const ok=!!p&&routeHonorsStartMode(p,mode)&&hasVerifiedTransitTransfers(p);
+   test(id,ok,ok?{first:firstTransitJourneyMode(p),transfers:countModeTransfers(p),path:p}:p);
+  }
+  const fake=[['current_location','pendik','Yürüyüş','',{walkMinutes:5}],['pendik','yenikapi','Marmaray','']];
+  test('pendik-m4-to-marmaray-fake',!routeHonorsStartMode(fake,'M4 Metro'),{path:fake});
+  window.v230StartModeIntegrityQA=()=>out;
+  return out;
+ }
+ window.v230StartModeIntegrityQA=v230StartModeIntegrityQA;
 })();
 </script>
 <script>/* V225 IETT stop registry audit */
