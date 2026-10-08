@@ -1757,6 +1757,32 @@ window.v223AcceptanceQA=function(){
   const r2=minimumRailRoute('kozyatagi','umraniye',4,null,null);
   const r3=minimumRailRoute('unalan','zincirlikuyu',4,null,null);
   test('10-regression',!!r1&&!!r2&&!!r3&&hasVerifiedTransitTransfers(r1)&&hasVerifiedTransitTransfers(r2)&&hasVerifiedTransitTransfers(r3),'Ayrılık-Sirkeci, Kozyatağı-Ümraniye ve Ünalan-Zincirlikuyu ana ağ regresyonları.');
+
+  // 11) Surface/ferry access regression.
+  const kalamisHisari=generateRouteCandidates('wyndham_grand_kalamis','anadolu_hisari');
+  const kalamisHisariBest=selectBestRoute(kalamisHisari);
+  const kalamisHisariModes=(kalamisHisariBest?.path||[]).map(x=>x?.[2]);
+  test('11-kalamis-anadolu-hisari',
+    !!kalamisHisariBest && kalamisHisariModes.includes('Vapur') &&
+    kalamisHisariBest.path.some(x=>x?.[0]==='kadikoy'&&x?.[1]==='uskudar'&&x?.[2]==='Vapur') &&
+    kalamisHisariBest.path.some(x=>x?.[1]==='anadolu_hisari'&&x?.[2]==='Son ulaşım'),
+    'Kalamış → Anadolu Hisarı: Kadıköy–Üsküdar vapur alternatifi ve hedef son ulaşımı korunuyor.');
+
+  // 12) Reverse surface/ferry regression.
+  const hisariKalamis=generateRouteCandidates('anadolu_hisari','wyndham_grand_kalamis');
+  const hisariKalamisBest=selectBestRoute(hisariKalamis);
+  const reverseModes=(hisariKalamisBest?.path||[]).map(x=>x?.[2]);
+  test('12-anadolu-hisari-kalamis',
+    !!hisariKalamisBest && reverseModes.includes('Vapur') &&
+    hisariKalamisBest.path.some(x=>x?.[0]==='uskudar'&&x?.[1]==='kadikoy'&&x?.[2]==='Vapur'),
+    'Anadolu Hisarı → Kalamış ters yönde deniz erişimi korunuyor.');
+
+  // 13) No false short-walk regression.
+  test('13-no-false-hisari-walk',
+    !Number.isFinite(Number(touristWalkTime('uskudar','anadolu_hisari'))) &&
+    !Number.isFinite(Number(lastMileWalkMinutes.anadolu_hisari)),
+    'Üsküdar → Anadolu Hisarı için sahte 2 dk yürüyüş değeri yok.');
+
   return out;
 };
 })();
@@ -4068,6 +4094,34 @@ function multimodalFerryCandidate(a,b){
         '<b>Kuzguncuk İskelesi</b>nden <b>Beşiktaş</b> yönüne giden Çengelköy-Kuzguncuk-Beşiktaş-Kabataş hattına bin.'
       ];
       candidates.push({path:railPart.concat([local,ferry]),transfers:countModeTransfers(railPart.concat([local,ferry])),priority:0});
+    }
+  }
+
+  // Evaluate a direct ferry between the resolved start/end access hubs.
+  // This covers places such as Wyndham Kalamış → Anadolu Hisarı: the place
+  // itself is not an iskele, but its verified access hubs (Kadıköy/Üsküdar)
+  // are directly connected by ferry. Do not force a rail loop when the direct
+  // surface connection is valid and competitive.
+  const startAccess=resolveStationAccess(a,b);
+  const endAccessForHub=getEndAccess(b);
+  const startHub=startAccess?.station;
+  const endHubForHub=endAccessForHub?.station;
+  if(startHub && endHubForHub && startHub!==endHubForHub && endAccessForHub?.local===true){
+    const edgePath=directFerryRoute(startHub,endHubForHub);
+    if(edgePath){
+      const prefix=startAccessPlaceNeedsLayer(a,startAccess)
+        ? (startAccess.mode==='Vapur'
+          ? [[a,startHub,'Vapur','<b>'+ (places.find(p=>p.id===a)?.name||a) +'</b> iskelesinden <b>'+ (startAccess.label||nodeLabel(startHub)) +'</b> yönüne giden vapur/motora bin.']]
+          : localAccessSteps(a,startAccess))
+        : [];
+      const ferryLeg=edgePath[0];
+      const suffix=(endHubForHub!==b && endAccessForHub.direct!==true)
+        ? targetAccessSteps({...endAccessForHub,direct:false},b)
+        : [];
+      const path=prefix.concat([[startHub,endHubForHub,'Vapur',ferryLeg[3]]],suffix||[]);
+      if(path.length && validateRoute(path).ok){
+        candidates.push({path,transfers:countModeTransfers(path),priority:0});
+      }
     }
   }
 
