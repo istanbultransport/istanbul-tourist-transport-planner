@@ -1,15 +1,15 @@
-<!-- V230.10-LAST-MILE-BUS-FIX: adaptive access + explicit starting-line + authoritative station navigation. -->
+<!-- V230.11-CONTROLLED-LAST-MILE-PATCH: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.10-LAST-MILE-BUS-FIX">
+<meta name="build-id" content="V230.11-CONTROLLED-LAST-MILE-PATCH">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
   // One-time cleanup for any legacy PWA/service-worker/cache left by older deployments.
   // This does not touch application data; it only removes this site's old worker/cache.
-  window.__APP_BUILD_ID__='V230.10-LAST-MILE-BUS-FIX';
+  window.__APP_BUILD_ID__='V230.11-CONTROLLED-LAST-MILE-PATCH';
   try{
     if('serviceWorker' in navigator){
       const key='itp_legacy_cleanup_V223_E_FIX1';
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.10-LAST-MILE-BUS-FIX</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.11-CONTROLLED-LAST-MILE-PATCH</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -2540,19 +2540,61 @@ const lastMileWalkMinutes = {
   emirgan_parki: 3,
 };
 
+/* V230.11: final-mile walking time is station+target specific.
+ * A target-only value must never override the actual alighted station, because
+ * the same destination can be 2 minutes from one station and 20+ minutes from
+ * another. Legacy target-only values remain usable only when the target's
+ * verified end-access station is the same physical station we actually reached. */
+const lastMileStationWalkMinutes = {
+  // Explicitly audited live example: Haliç M2 → Arap Camii ≈ 2 min.
+  'halic|arap_camii': 2
+};
+
 function getLastMileWalkMinutes(access,targetId){
-  const explicit=lastMileWalkMinutes[targetId];
-  if(Number.isFinite(Number(explicit))) return Number(explicit);
   if(Number.isFinite(Number(access?.walkMinutes))) return Number(access.walkMinutes);
-  const inferred=touristWalkTime(access?.station,targetId);
-  return Number.isFinite(Number(inferred)) ? Number(inferred) : null;
+
+  const station=access?.station;
+  const stationSpecific=station ? lastMileStationWalkMinutes[`${station}|${targetId}`] : null;
+  if(stationSpecific!==null && stationSpecific!==undefined && Number.isFinite(Number(stationSpecific))) return Number(stationSpecific);
+
+  const inferred=touristWalkTime(station,targetId);
+  if(inferred!==null && inferred!==undefined && Number.isFinite(Number(inferred))) return Number(inferred);
+
+  // Legacy target-only data is accepted only if its verified target-access
+  // station is exactly the station where the passenger actually alighted.
+  // This preserves useful audited data without letting another station's
+  // walking time decide the 18-minute bus threshold.
+  if(station && typeof getEndAccess==='function'){
+    const verifiedEnd=getEndAccess(targetId);
+    const legacy=lastMileWalkMinutes[targetId];
+    if(verifiedEnd?.station===station && Number.isFinite(Number(legacy))) return Number(legacy);
+  }
+  if(!station){
+    const legacy=lastMileWalkMinutes[targetId];
+    if(Number.isFinite(Number(legacy))) return Number(legacy);
+  }
+  return null;
+}
+
+function lastMileTargetNavigationHtml(access,targetId,target){
+  const targetObj=places.find(p=>p.id===targetId);
+  const hotel=hotelMeta(targetId);
+  const destination=(hotel && Number.isFinite(Number(hotel.lat)) && Number.isFinite(Number(hotel.lng)))
+    ? `${hotel.lat},${hotel.lng}`
+    : (targetObj && Number.isFinite(Number(targetObj.lat)) && Number.isFinite(Number(targetObj.lng))
+      ? `${targetObj.lat},${targetObj.lng}`
+      : `${target} İstanbul`);
+  return currentLocationWalkingNavLink(destination,'🚶 Yürü — hedefe navigasyonu aç');
 }
 function lastMileStep(access,targetId){
   const targetObj=places.find(p=>p.id===targetId);
   const target=targetObj?.name || targetId;
   const station=access?.label || nodeLabel(access?.station);
   const mins=getLastMileWalkMinutes(access,targetId);
-  const nav=exitNavigationHtml(access.station,targetId);
+  // Last-mile cards need only the target navigation button. The full exit
+  // renderer also contains its own explanatory sentence, which previously
+  // caused the same station→target sentence to render twice.
+  const nav=lastMileTargetNavigationHtml(access,targetId,target);
 
   /*
    * Critical V230.10 rule:
@@ -2803,7 +2845,9 @@ function iettStopLabel(name,code){
  * never invented; the renderer falls back to direct walking in that case.
  */
 const lastMileBusRegistry = {
+  // Verified: İETT 48G official route + Kemerburgaz Kent Ormanı access source.
   kemerburgaz_kent_ormani_from_gokturk: {
+    key: 'gokturk_m11|kemerburgaz_kent_ormani',
     targetId: 'kemerburgaz_kent_ormani',
     station: 'gokturk_m11',
     stopName: 'Göktürk Deresi - Kemerburgaz Yönü',
@@ -2816,23 +2860,26 @@ const lastMileBusRegistry = {
     alightQuery: 'Kent Ormanı İETT Durağı, İstanbul',
     targetQuery: 'Kemerburgaz Kent Ormanı, İstanbul',
     iettUrl: 'https://iett.istanbul/RouteDetail?hkod=48G&routename=G%C3%96KT%C3%9CRK-+MESC%C4%B0D%C4%B0+SELAM',
-    source: 'İETT 48G official route + Kemerburgaz Kent Ormanı official access page'
+    source: 'İETT 48G official route + Kemerburgaz Kent Ormanı official access page',
+    verified: true
   }
 };
 
+// Normalize the registry into an O(1) station|target index. This keeps the
+// renderer data-driven: adding a verified bus connection never requires a new
+// target-specific if/else branch.
+const lastMileBusPlanIndex = new Map();
+for(const plan of Object.values(lastMileBusRegistry)){
+  if(plan?.verified && plan.station && plan.targetId){
+    lastMileBusPlanIndex.set(plan.key || `${plan.station}|${plan.targetId}`,plan);
+  }
+}
+
 function lastMileBusPlanFor(access, targetId) {
-  if (!access || !targetId) return null;
-  const station = String(access.station || '');
-  const key = targetId === 'kemerburgaz_kent_ormani' && station === 'gokturk_m11'
-    ? 'kemerburgaz_kent_ormani_from_gokturk'
-    : null;
-  if (!key) return null;
-  const plan = lastMileBusRegistry[key];
-  if (!plan) return null;
-  return {
-    ...plan,
-    stationLabel: access.label || nodeLabel(access.station)
-  };
+  if(!access || !targetId || !access.station) return null;
+  const plan=lastMileBusPlanIndex.get(`${access.station}|${targetId}`);
+  if(!plan || plan.verified!==true) return null;
+  return { ...plan, stationLabel:access.label || nodeLabel(access.station) };
 }
 
 function lastMileBusWalkLink(destination, label) {
@@ -4324,7 +4371,7 @@ function renderPath(path,targetId){
   }).join('');
 }
 
-/* V230.10 Last-Mile QA helpers — pure deterministic checks. */
+/* V230.11 Last-Mile QA helpers — pure deterministic checks. */
 function lastMilePresentationQA(){
   const out={status:'PASS',tests:[],failures:[]};
   const add=(name,ok,detail)=>{out.tests.push({name,ok,detail});if(!ok){out.status='FAIL';out.failures.push({name,detail});}};
@@ -4334,8 +4381,18 @@ function lastMilePresentationQA(){
   add('<=18-no-bus-warning',!shortText.includes('Otobüsle devam edebilirsiniz.'),shortText);
   add('<=18-no-ride-warning',!shortText.includes('Uber')&&!shortText.includes('Yandex Go')&&!shortText.includes('Martı TAG'),shortText);
   add('<=18-has-target-navigation',shortText.includes('google.com/maps/dir/'),shortText);
+  add('<=18-no-duplicate-walk-sentence',(shortText.match(/Haliç M2<\/b> istasyonundan <b>Arap Camii<\/b> hedefine yürüyebilirsiniz\./g)||[]).length===1,shortText);
 
-  const bus=lastMileStep({station:'gokturk_m11',mode:'M11 Metro',label:'Göktürk M11'},'kemerburgaz_kent_ormani');
+  // Regression guard: a station-specific value must beat a legacy target-only
+  // value. This is the critical 18-minute-threshold protection.
+  const mismatch=lastMileStep({station:'qa_station',mode:'M2 Metro',label:'QA Station',walkMinutes:19},'arap_camii');
+  const mismatchText=String(mismatch?.[3]||'');
+  add('station-walk-time-wins-over-target-legacy',mismatchText.includes('Yaklaşık 19 dakika yürüyebilirsiniz.'),mismatchText);
+
+  add('bus-registry-indexed',lastMileBusPlanIndex.get('gokturk_m11|kemerburgaz_kent_ormani')?.verified===true,'verified bus plan index');
+
+  const busAccess=getEndAccess('kemerburgaz_kent_ormani') || {station:'gokturk_m11',mode:'M11 Metro',label:'Göktürk M11',walkMinutes:21};
+  const bus=lastMileStep(busAccess,'kemerburgaz_kent_ormani');
   const busText=String(bus?.[3]||'');
   add('>18-verified-bus-plan',busText.includes('48G')&&busText.includes('Kent Ormanı'),busText);
   add('>18-board-stop',busText.includes('Göktürk Deresi - Kemerburgaz Yönü'),busText);
@@ -4345,19 +4402,20 @@ function lastMilePresentationQA(){
   add('>18-final-navigation',busText.includes('hedefe navigasyonu aç'),busText);
   add('>18-official-iett-link',busText.includes('iett.istanbul/RouteDetail?hkod=48G'),busText);
 
-  const fallback=lastMileStep({station:'olimpiyat',mode:'M9 Metro',label:'Olimpiyat M9'},'ataturk_olimpiyat_stadyumu');
+  const fallbackAccess=getEndAccess('yildiz_sarayi') || {station:'yildiz',mode:'M7 Metro',label:'Yıldız M7'};
+  const fallback=lastMileStep(fallbackAccess,'yildiz_sarayi');
   const fallbackText=String(fallback?.[3]||'');
   add('>18-unverified-bus-no-invention',!fallbackText.includes('48G')&&!fallbackText.includes('79FY')&&!fallbackText.includes('MK13'),fallbackText);
-  add('>18-fallback-has-walk',fallbackText.includes('Yaklaşık 20 dakika yürüyebilirsiniz.'),fallbackText);
+  add('>18-fallback-has-walk',fallbackText.includes('Yaklaşık 22 dakika yürüyebilirsiniz.'),fallbackText);
   add('>18-fallback-no-ride-warning',!fallbackText.includes('Uber')&&!fallbackText.includes('Yandex Go')&&!fallbackText.includes('Martı TAG'),fallbackText);
 
-  const threshold18 = {...lastMileWalkMinutes, __qa_exact18:18};
-  const old=lastMileWalkMinutes.__qa_exact18;
-  lastMileWalkMinutes.__qa_exact18=18;
-  const exact=lastMileStep({station:'halic',mode:'M2 Metro',label:'Haliç M2'},'__qa_exact18');
+  const exactKey='qa_exact18_station|__qa_exact18';
+  const oldExact=lastMileStationWalkMinutes[exactKey];
+  lastMileStationWalkMinutes[exactKey]=18;
+  const exact=lastMileStep({station:'qa_exact18_station',mode:'M2 Metro',label:'QA Exact18'},'__qa_exact18');
   const exactText=String(exact?.[3]||'');
   add('exactly-18-walk-only',exactText.includes('Yaklaşık 18 dakika yürüyebilirsiniz.')&&!exactText.includes('Otobüsle devam edebilirsiniz.'),exactText);
-  if(old===undefined) delete lastMileWalkMinutes.__qa_exact18; else lastMileWalkMinutes.__qa_exact18=old;
+  if(oldExact===undefined) delete lastMileStationWalkMinutes[exactKey]; else lastMileStationWalkMinutes[exactKey]=oldExact;
 
   return out;
 }
@@ -5142,7 +5200,7 @@ render();
 // QA hook: automatically available without affecting normal application flow.
 
 </script>
-<script>/* V230.10-LAST-MILE-BUS-FIX focused QA */
+<script>/* V230.11-CONTROLLED-LAST-MILE-PATCH focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
@@ -5508,7 +5566,7 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230.10-LAST-MILE-BUS-FIX');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.11-CONTROLLED-LAST-MILE-PATCH');
 })();
 
 function v227WalkingNavigationQA(){
