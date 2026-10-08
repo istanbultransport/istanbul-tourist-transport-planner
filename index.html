@@ -4632,6 +4632,14 @@ let currentLocation = null;
 let currentLocationStation = null;
 let locationBusy = false;
 const CURRENT_LOCATION_STATION_API='https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetStations';
+let liveGpsStationCoordinates=[];
+function gpsStationCoordinates(){
+  const base=staticGpsStationCoordinates();
+  if(!liveGpsStationCoordinates.length) return base;
+  const liveByKey=new Map(liveGpsStationCoordinates.map(x=>[x.station+'|'+x.mode,x]));
+  return base.map(x=>liveByKey.get(x.station+'|'+x.mode)||x)
+    .concat(liveGpsStationCoordinates.filter(x=>!base.some(b=>b.station===x.station&&b.mode===x.mode)));
+}
 function gpsDistanceKm(a,b){
   const R=6371, p=Math.PI/180;
   const dLat=(b.lat-a.lat)*p, dLon=(b.lng-a.lng)*p;
@@ -4667,6 +4675,7 @@ async function fetchGpsStationCoordinates(){
       if(!hit) continue;
       out.push({station:hit.node,mode:hit.mode,label:hit.label,lat,lng});
     }
+    liveGpsStationCoordinates=out;
     return out;
   }catch(_){ return []; }
 }
@@ -4730,8 +4739,8 @@ function staticGpsStationCoordinates(){
     {station:'arnavutkoy_hastane',mode:'M11 Metro',label:'Arnavutköy Hastane M11',lat:41.17929,lng:28.74774}
   ];
 }
-function resolveCurrentLocationStation(){
-  const stations=staticGpsStationCoordinates();
+function resolveCurrentLocationStation(stationsOverride=null){
+  const stations=Array.isArray(stationsOverride)&&stationsOverride.length ? stationsOverride : gpsStationCoordinates();
   if(!stations.length || !currentLocation) return null;
   // Never turn a poor browser/desktop geolocation fix into a confident rail
   // station selection. A stale/low-quality position can otherwise make the
@@ -4749,7 +4758,7 @@ function resolveCurrentLocationStation(){
 }
 
 function currentLocationAccessCandidates(target){
-  const stations=staticGpsStationCoordinates();
+  const stations=gpsStationCoordinates();
   if(!currentLocation || !stations.length) return [];
   const seen=new Set();
   const candidates=[];
@@ -4822,7 +4831,10 @@ function useCurrentLocation(){
     clearTimeout(watchdog);
     currentLocation={lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:Number.isFinite(pos.coords.accuracy)?pos.coords.accuracy:null,timestamp:pos.timestamp};
     setLocationStatus('Konum bulundu. Yakındaki raylı sistem istasyonu belirleniyor…');
-    currentLocationStation=resolveCurrentLocationStation();
+    // Prefer the live Metro Istanbul station registry when available; static
+    // coordinates remain the deterministic offline fallback.
+    const liveStations=await fetchGpsStationCoordinates();
+    currentLocationStation=resolveCurrentLocationStation(liveStations.length?liveStations:null);
     if(currentLocationStation){
       const gpsAccess={station:currentLocationStation.station,mode:currentLocationStation.mode,label:currentLocationStation.label,direct:true,fromCurrentLocation:true};
       stationSearchAccess.current_location=gpsAccess;
