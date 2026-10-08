@@ -1,15 +1,15 @@
-<!-- V230.4-CORRIDOR-ACCESS-LOGIC: adaptive access + explicit starting-line + authoritative station navigation. -->
+<!-- V230.10-LAST-MILE-BUS-FIX: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.4-CORRIDOR-ACCESS-LOGIC">
+<meta name="build-id" content="V230.10-LAST-MILE-BUS-FIX">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
   // One-time cleanup for any legacy PWA/service-worker/cache left by older deployments.
   // This does not touch application data; it only removes this site's old worker/cache.
-  window.__APP_BUILD_ID__='V230.4-CORRIDOR-ACCESS-LOGIC';
+  window.__APP_BUILD_ID__='V230.10-LAST-MILE-BUS-FIX';
   try{
     if('serviceWorker' in navigator){
       const key='itp_legacy_cleanup_V223_E_FIX1';
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.4-CORRIDOR-ACCESS-LOGIC</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.10-LAST-MILE-BUS-FIX</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -2552,16 +2552,39 @@ function lastMileStep(access,targetId){
   const target=targetObj?.name || targetId;
   const station=access?.label || nodeLabel(access?.station);
   const mins=getLastMileWalkMinutes(access,targetId);
-  const walkLine=mins
-    ? `🚶 <b>Yaklaşık ${mins} dakika yürüyebilirsiniz.</b>`
-    : `🚶 <b>Yürüyüş süresi uygulama içinde doğrulanmadı.</b> Çıkıştan hedefe yaya navigasyonunu açarak güncel yürüyüş süresini görebilirsiniz.`;
-  const local=access?.local===true || access?.stationOnly===true;
-  const intro=local
-    ? `<b>📍 ${target} için önerilen son ulaşım noktasındasınız: ${station}.</b>`
-    : `<b>📍 ${target} için en yakın istasyon olan ${station} istasyonundasınız.</b>`;
   const nav=exitNavigationHtml(access.station,targetId);
-  const text=`${intro}<br><br>${walkLine}<br>🚌 <b>Otobüsle devam edebilirsiniz.</b><br>🚕 <b>${rideAppSentence()}</b>${nav}`;
-  return [access.station,targetId,'Son ulaşım',text];
+
+  /*
+   * Critical V230.10 rule:
+   * <=18 minutes => walk-only final-mile card. Do not show bus/ride-app
+   * warnings because they add noise when the walk is already practical.
+   */
+  if(Number.isFinite(Number(mins)) && Number(mins)<=18){
+    const walkLine=`🚶 <b>Yaklaşık ${Math.round(Number(mins))} dakika yürüyebilirsiniz.</b>`;
+    const sentence=`🚶 <b>${station}</b> istasyonundan <b>${target}</b> hedefine yürüyebilirsiniz.`;
+    return [access.station,targetId,'Son ulaşım',
+      `<b>📍 ${target} için en yakın istasyon olan ${station} istasyonundasınız.</b><br><br>${walkLine}<br><br>${sentence}${nav}`];
+  }
+
+  /*
+   * >18 minutes => inspect only verified bus/stop plans. If a verified
+   * connection exists, guide the user to the boarding stop, then the bus,
+   * then the alighting stop, then the target. If no verified plan exists,
+   * never invent one; fall back to a clean direct-walk alternative.
+   */
+  const busPlan=lastMileBusPlanFor(access,targetId);
+  if(busPlan){
+    const busText=renderLastMileBusPlan(busPlan,target);
+    return [access.station,targetId,'Son ulaşım',
+      `<b>📍 ${target} için son ulaşım bağlantısı ${station} istasyonundan başlıyor.</b><br><br>${busText}`];
+  }
+
+  const walkLine=Number.isFinite(Number(mins))
+    ? `🚶 <b>Yaklaşık ${Math.round(Number(mins))} dakika yürüyebilirsiniz.</b>`
+    : `🚶 <b>Yürüyüş süresi uygulama içinde doğrulanmadı.</b> Güncel yaya rotasını navigasyondan kontrol edin.`;
+  const sentence=`🚶 <b>${station}</b> istasyonundan <b>${target}</b> hedefine yürüyebilirsiniz.`;
+  return [access.station,targetId,'Son ulaşım',
+    `<b>📍 ${target} için en yakın istasyon olan ${station} istasyonundasınız.</b><br><br>${walkLine}<br><br>${sentence}${nav}`];
 }
 
 const touristWalkDistanceKmMap = {
@@ -2764,6 +2787,76 @@ function getIettStop(name,code){
 function iettStopLabel(name,code){
   const s=getIettStop(name,code);
   return s?`${s.displayName} (${s.code})`:name;
+}
+
+/*
+ * V230.10 LAST-MILE BUS REGISTRY
+ * Only verified route/stop combinations are allowed here.
+ *
+ * Sources checked during the V230.10 audit:
+ * - İETT 48G official route page: Göktürk Caddesi / Göktürk Deresi /
+ *   Kemerburgaz / Kemerburgaz Metro / Kent Ormanı stop order.
+ * - Kemerburgaz Kent Ormanı official access page: 48G and 48U serve
+ *   Kemerburgaz Kent Ormanı.
+ *
+ * This registry is intentionally small. An unverified bus connection is
+ * never invented; the renderer falls back to direct walking in that case.
+ */
+const lastMileBusRegistry = {
+  kemerburgaz_kent_ormani_from_gokturk: {
+    targetId: 'kemerburgaz_kent_ormani',
+    station: 'gokturk_m11',
+    stopName: 'Göktürk Deresi - Kemerburgaz Yönü',
+    stopQuery: 'Göktürk Deresi - Kemerburgaz Yönü, İstanbul',
+    walkToStopMinutes: 8,
+    line: '48G',
+    direction: 'Mescid-i Selam',
+    boardStop: 'Göktürk Deresi - Kemerburgaz Yönü',
+    alightStop: 'Kent Ormanı',
+    alightQuery: 'Kent Ormanı İETT Durağı, İstanbul',
+    targetQuery: 'Kemerburgaz Kent Ormanı, İstanbul',
+    iettUrl: 'https://iett.istanbul/RouteDetail?hkod=48G&routename=G%C3%96KT%C3%9CRK-+MESC%C4%B0D%C4%B0+SELAM',
+    source: 'İETT 48G official route + Kemerburgaz Kent Ormanı official access page'
+  }
+};
+
+function lastMileBusPlanFor(access, targetId) {
+  if (!access || !targetId) return null;
+  const station = String(access.station || '');
+  const key = targetId === 'kemerburgaz_kent_ormani' && station === 'gokturk_m11'
+    ? 'kemerburgaz_kent_ormani_from_gokturk'
+    : null;
+  if (!key) return null;
+  const plan = lastMileBusRegistry[key];
+  if (!plan) return null;
+  return {
+    ...plan,
+    stationLabel: access.label || nodeLabel(access.station)
+  };
+}
+
+function lastMileBusWalkLink(destination, label) {
+  return currentLocationWalkingNavLink(destination, label);
+}
+
+function renderLastMileBusPlan(plan, target) {
+  const boardWalk = lastMileBusWalkLink(
+    plan.stopQuery,
+    '🚶 Yürü — otobüs durağına navigasyonu aç'
+  );
+  const finalWalk = lastMileBusWalkLink(
+    plan.targetQuery,
+    '🚶 Yürü — hedefe navigasyonu aç'
+  );
+  const iett = `<a href="${plan.iettUrl}" target="_blank" rel="noopener noreferrer" title="İETT resmi hat bilgisi"><b>${plan.line} İETT</b></a>`;
+  return [
+    `🚶 <b>${plan.stationLabel}</b> istasyonundan <b>${plan.boardStop}</b> durağına yaklaşık <b>${plan.walkToStopMinutes} dakika</b> yürüyün.`,
+    boardWalk,
+    `🚌 <b>${iett}</b> hattına <b>${plan.direction}</b> yönünde binin.`,
+    `🛑 <b>${plan.alightStop}</b> durağında inin.`,
+    `🚶 <b>${plan.alightStop}</b> durağından <b>${target}</b> hedefine yürüyün.`,
+    finalWalk
+  ].join('<br><br>');
 }
 
 const startLocalAccessRegistry={
@@ -4231,6 +4324,45 @@ function renderPath(path,targetId){
   }).join('');
 }
 
+/* V230.10 Last-Mile QA helpers — pure deterministic checks. */
+function lastMilePresentationQA(){
+  const out={status:'PASS',tests:[],failures:[]};
+  const add=(name,ok,detail)=>{out.tests.push({name,ok,detail});if(!ok){out.status='FAIL';out.failures.push({name,detail});}};
+  const short=lastMileStep({station:'halic',mode:'M2 Metro',label:'Haliç M2',local:true},'arap_camii');
+  const shortText=String(short?.[3]||'');
+  add('<=18-has-walk-time',/Yaklaşık 2 dakika yürüyebilirsiniz/.test(shortText),shortText);
+  add('<=18-no-bus-warning',!shortText.includes('Otobüsle devam edebilirsiniz.'),shortText);
+  add('<=18-no-ride-warning',!shortText.includes('Uber')&&!shortText.includes('Yandex Go')&&!shortText.includes('Martı TAG'),shortText);
+  add('<=18-has-target-navigation',shortText.includes('google.com/maps/dir/'),shortText);
+
+  const bus=lastMileStep({station:'gokturk_m11',mode:'M11 Metro',label:'Göktürk M11'},'kemerburgaz_kent_ormani');
+  const busText=String(bus?.[3]||'');
+  add('>18-verified-bus-plan',busText.includes('48G')&&busText.includes('Kent Ormanı'),busText);
+  add('>18-board-stop',busText.includes('Göktürk Deresi - Kemerburgaz Yönü'),busText);
+  add('>18-bus-direction',busText.includes('Mescid-i Selam'),busText);
+  add('>18-alight-stop',busText.includes('Kent Ormanı'),busText);
+  add('>18-boarding-navigation',busText.includes('otobüs durağına navigasyonu aç'),busText);
+  add('>18-final-navigation',busText.includes('hedefe navigasyonu aç'),busText);
+  add('>18-official-iett-link',busText.includes('iett.istanbul/RouteDetail?hkod=48G'),busText);
+
+  const fallback=lastMileStep({station:'olimpiyat',mode:'M9 Metro',label:'Olimpiyat M9'},'ataturk_olimpiyat_stadyumu');
+  const fallbackText=String(fallback?.[3]||'');
+  add('>18-unverified-bus-no-invention',!fallbackText.includes('48G')&&!fallbackText.includes('79FY')&&!fallbackText.includes('MK13'),fallbackText);
+  add('>18-fallback-has-walk',fallbackText.includes('Yaklaşık 20 dakika yürüyebilirsiniz.'),fallbackText);
+  add('>18-fallback-no-ride-warning',!fallbackText.includes('Uber')&&!fallbackText.includes('Yandex Go')&&!fallbackText.includes('Martı TAG'),fallbackText);
+
+  const threshold18 = {...lastMileWalkMinutes, __qa_exact18:18};
+  const old=lastMileWalkMinutes.__qa_exact18;
+  lastMileWalkMinutes.__qa_exact18=18;
+  const exact=lastMileStep({station:'halic',mode:'M2 Metro',label:'Haliç M2'},'__qa_exact18');
+  const exactText=String(exact?.[3]||'');
+  add('exactly-18-walk-only',exactText.includes('Yaklaşık 18 dakika yürüyebilirsiniz.')&&!exactText.includes('Otobüsle devam edebilirsiniz.'),exactText);
+  if(old===undefined) delete lastMileWalkMinutes.__qa_exact18; else lastMileWalkMinutes.__qa_exact18=old;
+
+  return out;
+}
+
+
 /**
  * Istanbul Tourist Transport Planner — UI Layer
  * Filters, cards, discovery panels, route rendering and user interactions.
@@ -5010,7 +5142,7 @@ render();
 // QA hook: automatically available without affecting normal application flow.
 
 </script>
-<script>/* V230.4-CORRIDOR-ACCESS-LOGIC focused QA */
+<script>/* V230.10-LAST-MILE-BUS-FIX focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
@@ -5376,7 +5508,7 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230.9-CORRIDOR-ACCESS-200QA-FIX');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.10-LAST-MILE-BUS-FIX');
 })();
 
 function v227WalkingNavigationQA(){
