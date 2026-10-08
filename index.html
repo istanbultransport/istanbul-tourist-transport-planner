@@ -372,6 +372,10 @@ function islandFerryRoute(a,b){
 
 const ferryGraph={
   kadikoy:[
+    // Verified Şehir Hatları: Kadıköy (Eski) → Üsküdar → Ortaköy.
+    // Üsküdar is a valid intermediate interchange, not a reason to force
+    // M4 + Marmaray when a surface/ferry path is competitive.
+    ['uskudar','Vapur','Kadıköy (Eski) İskelesi → Üsküdar yönündeki vapura bin.'],
     ['besiktas','Vapur','Kadıköy → Beşiktaş vapuru/motoruna bin.'],
     ['karakoy','Vapur','Kadıköy → Karaköy yönündeki vapuru/motoruna bin.'],
     ['eminonu','Vapur','Kadıköy → Karaköy → Eminönü hattındaki vapura bin.'],
@@ -2552,7 +2556,8 @@ const lastMileWalkMinutes = {
 
   // Ek doğrulanan son-ulaşım süreleri (en yakın pratik durak/erişim noktası).
   beylerbeyi: 6,
-  anadolu_hisari: 2,
+  // Do not claim a short walk from Üsküdar to Anadolu Hisarı.
+  // The verified local/ferry layer handles this connection.
   cengelkoy: 2,
   ataturk_arboretumu: 3,
   aydos_ormani: 13,
@@ -2875,6 +2880,17 @@ function iettStopLabel(name,code){
 const lastMileBusRegistry = {
   // Verified: İETT 139A Şemsipaşa → Ağva Merkez. The official route lists
   // both Üsküdar Marmaray and Şemsipaşa as Üsküdar stops.
+  // Verified İETT: 15/15F serve Anadolu Hisarı from Üsküdar-side stops.
+  // This is access data, not a destination-specific routing rule.
+  anadolu_hisari_from_uskudar: {
+    key: 'uskudar|anadolu_hisari', targetId: 'anadolu_hisari', station: 'uskudar',
+    stopName: 'Üsküdar Camii Önü', stopQuery: 'Üsküdar Camii Önü, Üsküdar, İstanbul',
+    walkToStopMinutes: 4, line: '15 / 15F', direction: 'Anadolu Hisarı / Beykoz',
+    boardStop: 'Üsküdar Camii Önü', alightStop: 'Anadolu Hisarı',
+    alightQuery: 'Anadolu Hisarı, Beykoz, İstanbul', targetQuery: 'Anadolu Hisarı, Beykoz, İstanbul',
+    iettUrl: 'https://iett.istanbul/RouteDetail?hkod=15F',
+    source: 'İETT 15 / 15F official route', verified: true
+  },
   agva_from_uskudar_marmaray: {
     key: 'uskudar|agva', targetId: 'agva', station: 'uskudar',
     stopName: 'Şemsipaşa', stopQuery: 'Şemsipaşa, Üsküdar, İstanbul',
@@ -3067,7 +3083,10 @@ const touristAccess={
   kiz_kulesi:{station:'uskudar',mode:'M5 Metro',label:'Üsküdar M5'},
   camlica_tepesi:{station:'kisikli',mode:'M5 Metro',label:'Kısıklı M5',local:true},
   beylerbeyi:{station:'uskudar',mode:'M5 Metro',label:'Üsküdar M5'},
-  anadolu_hisari:{station:'uskudar',mode:'Yerel ulaşım',label:'Üsküdar yerel erişim',local:true},
+  // Anadolu Hisarı is a real surface/ferry destination, not a 2-minute
+  // walk from Üsküdar. Keep Üsküdar as a possible access hub, but let the
+  // multimodal candidate layer decide whether ferry/surface access beats rail.
+  anadolu_hisari:{station:'uskudar',mode:'Vapur',label:'Üsküdar İskelesi',local:true},
   cengelkoy:{station:'uskudar',mode:'M5 Metro',label:'Üsküdar M5'},
   bagdat_caddesi:{station:'bostanci',mode:'Marmaray',label:'Bostancı Marmaray'},
   kadikoy_carsi:{station:'kadikoy',mode:'M4 Metro',label:'Kadıköy M4'},
@@ -4049,6 +4068,26 @@ function multimodalFerryCandidate(a,b){
         '<b>Kuzguncuk İskelesi</b>nden <b>Beşiktaş</b> yönüne giden Çengelköy-Kuzguncuk-Beşiktaş-Kabataş hattına bin.'
       ];
       candidates.push({path:railPart.concat([local,ferry]),transfers:countModeTransfers(railPart.concat([local,ferry])),priority:0});
+    }
+  }
+
+  // If the destination has a verified surface/ferry access hub, also
+  // evaluate ferry-to-access-hub + final-mile access. This is deliberately
+  // generic: the destination is not hard-coded into the routing decision.
+  const endAccess=getEndAccess(b);
+  const endHub=endAccess?.station;
+  if(endHub && endHub!==b && endAccess?.local===true){
+    for(const hub of ferryHubs){
+      const edges=ferryGraph[hub]||[];
+      const edge=edges.find(e=>e[0]===endHub);
+      if(!edge) continue;
+      const railPart=a===hub ? [] : minimumRailRoute(a,hub,4);
+      if(a!==hub && !railPart) continue;
+      const ferryLeg=[hub,endHub,'Vapur',edge[2]];
+      const suffix=targetAccessSteps({...endAccess,direct:false},b);
+      const path=railPart.concat([ferryLeg],suffix||[]);
+      if(!path.length || !validateRoute(path).ok) continue;
+      candidates.push({path,transfers:countModeTransfers(path),priority:0});
     }
   }
 
