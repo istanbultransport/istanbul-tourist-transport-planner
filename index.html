@@ -3245,6 +3245,11 @@ function destinationHasDirectTransitAccess(placeId){
 }
 
 function getEndAccess(placeId){
+  // Destination-only override: Anadolu Hisarı can use Üsküdar as a ferry
+  // interchange, while its START access remains local surface transport.
+  if(placeId==='anadolu_hisari'){
+    return {station:'uskudar',mode:'Vapur',label:'Üsküdar İskelesi',local:true,direct:false};
+  }
   const direct=getEndRailAccess(placeId);
   if(direct) return {...direct,direct:direct.direct===true};
   if(touristAccess[placeId]){
@@ -3981,8 +3986,10 @@ function routeDecisionScore(path){
   const busPenalty=q.busSteps*22 + Math.max(0,q.busSteps-1)*28;
   const localPenalty=Math.max(0,q.localSteps-1)*7;
   const primaryModePenalty=Math.max(0,q.primaryModeCount-1)*2;
+  // Direct ferry can replace a rail transfer without adding a transit transfer.
+  const directFerryBonus=(path||[]).some(s=>s?.[2]==='Vapur') && q.transitTransfers===0 && q.localSteps<=1 ? 80 : 0;
   const longWalkPenalty=q.walkBurden*4;
-  return eta.base*10 + longWalkPenalty + q.surfacePenalty*3 + transferPenalty + busPenalty + localPenalty + primaryModePenalty;
+  return eta.base*10 + longWalkPenalty + q.surfacePenalty*3 + transferPenalty + busPenalty + localPenalty + primaryModePenalty - directFerryBonus;
 }
 function busWinsOnlyWithMeaningfulAdvantage(busPath,otherPath){
   if(!routeHasBus(busPath) || routeHasBus(otherPath)) return true;
