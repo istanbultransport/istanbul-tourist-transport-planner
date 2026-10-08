@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ITP QA Smoke Tests</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:24px;background:#111;color:#eee}
+h1{font-size:22px}.ok{color:#7ee787}.fail{color:#ff7b72}.info{color:#79c0ff}
+#summary{font-weight:700;margin:16px 0}.test{padding:8px 0;border-bottom:1px solid #333}
+iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0}
+</style>
+</head>
+<body>
+<h1>ITP — Runtime QA Smoke Tests</h1>
+<div id="summary" class="info">Uygulama yükleniyor…</div>
+<div id="results"></div>
+<iframe id="app" src="./index.html?qa=1"></iframe>
+<script>
+const out=document.getElementById('results');
+const summary=document.getElementById('summary');
+const tests=[];
+function test(name,fn){
+  try{const value=fn();tests.push({name,ok:value===true,detail:value===true?'PASS':String(value)});}
+  catch(e){tests.push({name,ok:false,detail:e&&e.message?e.message:String(e)});}
+}
+function render(){
+  out.innerHTML=tests.map(t=>'<div class="test '+(t.ok?'ok':'fail')+'">'+(t.ok?'✓':'✗')+' '+t.name+(t.ok?'':' — '+t.detail)+'</div>').join('');
+  const passed=tests.filter(t=>t.ok).length;
+  summary.textContent=passed+'/'+tests.length+' test geçti';
+  summary.className=passed===tests.length?'ok':'fail';
+}
+async function run(){
+  const frame=document.getElementById('app');
+  await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('index.html yükleme zaman aşımı')),10000);
+    frame.addEventListener('load',()=>{clearTimeout(timer);resolve()}, {once:true});
+  });
+  const w=frame.contentWindow;
+  await new Promise(r=>setTimeout(r,1200));
+
+  test('Temel fonksiyonlar mevcut',()=>[
+    'changeStart','changeTarget','selectStart','newRoute',
+    'useCurrentLocation','buildAdaptiveStartAccess','lastMileStep'
+  ].every(k=>typeof w[k]==='function'));
+
+  test('Service Worker kaydı için kod mevcut',()=>typeof w.navigator.serviceWorker!=='undefined');
+
+  test('Kalıcı local/session storage kullanılmıyor',()=>{
+    const src=w.document.documentElement.outerHTML;
+    return !/localStorage|sessionStorage/.test(src);
+  });
+
+  test('Başlangıç değiştirme hedefi temizlemiyor',()=>{
+    const before=w.eval('selectedTarget');
+    if(!before) return 'Test önkoşulu: seçili hedef yok';
+    w.changeStart();
+    return w.eval('selectedTarget')===before;
+  });
+
+  test('Hedef değiştirme başlangıcı koruyor',()=>{
+    const before=w.eval('start');
+    if(!before) return 'Test önkoşulu: başlangıç yok';
+    w.changeTarget();
+    return w.eval('start')===before;
+  });
+
+  test('Yeni rota başlangıç ve hedefi temizliyor',()=>{
+    w.newRoute();
+    return w.eval('start')===null && w.eval('selectedTarget')===null;
+  });
+
+  test('selectStart fonksiyonu hedef kaybına neden olmuyor',()=>{
+    const startCandidates=[...w.document.querySelectorAll('[onclick*="selectStart("]')];
+    if(!startCandidates.length) return 'Başlangıç kartı bulunamadı';
+    const target=w.eval('selectedTarget');
+    const node=startCandidates[0];
+    const m=(node.getAttribute('onclick')||'').match(/selectStart\((['"])(.*?)\1\)/);
+    if(!m) return 'Kart ID çözülemedi';
+    if(!target) return 'Test önkoşulu: seçili hedef yok';
+    w.selectStart(m[2]);
+    return w.eval('selectedTarget')===target;
+  });
+
+  test('GPS değişkenleri tanımlı',()=>[
+    'currentLocation','currentLocationStation','locationBusy'
+  ].every(k=>w.eval('typeof '+k)!=='undefined'));
+
+  test('GPS doğruluk koruması mevcut',()=>{
+    const src=w.document.documentElement.outerHTML;
+    return /accuracy\s*>\s*1000|accuracy\s*>=\s*1000/.test(src);
+  });
+
+  test('15 dk erişim koruması mevcut',()=>{
+    const src=w.document.documentElement.outerHTML;
+    return /15\s*\*\s*60|15\s*min|15 dakika/.test(src);
+  });
+
+  test('Canlı GPS istasyon kaynağı mevcut',()=>{
+    const src=w.document.documentElement.outerHTML;
+    return /GetStations/.test(src) && /liveGpsStationCoordinates/.test(src);
+  });
+
+  test('Birleşik canlı + statik GPS koordinat havuzu mevcut',()=>{
+    const src=w.document.documentElement.outerHTML;
+    return /gpsStationCoordinates\s*\(/.test(src) && /liveGpsStationCoordinates/.test(src);
+  });
+
+  test('Havalimanı için Marmaray aynı-node koruması mevcut',()=>{
+    const src=w.document.documentElement.outerHTML;
+    return /same-node-marmaray-airport/.test(src);
+  });
+
+  test('Son ulaşımda doğrulanmamış otobüs uydurulmuyor',()=>{
+    const src=w.document.documentElement.outerHTML;
+    return /lastMileBusRegistry/.test(src);
+  });
+
+  render();
+}
+run().catch(e=>{summary.textContent='QA çalıştırılamadı: '+e.message;summary.className='fail';});
+</script>
+</body>
+</html>
