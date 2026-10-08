@@ -1,15 +1,15 @@
-<!-- V230.2-STATION-NAV-LIVE-FIRST: adaptive access + explicit starting-line + authoritative station navigation. -->
+<!-- V230.4-CORRIDOR-ACCESS-LOGIC: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.2-STATION-NAV-LIVE-FIRST">
+<meta name="build-id" content="V230.4-CORRIDOR-ACCESS-LOGIC">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
   // One-time cleanup for any legacy PWA/service-worker/cache left by older deployments.
   // This does not touch application data; it only removes this site's old worker/cache.
-  window.__APP_BUILD_ID__='V230.2-STATION-NAV-LIVE-FIRST';
+  window.__APP_BUILD_ID__='V230.4-CORRIDOR-ACCESS-LOGIC';
   try{
     if('serviceWorker' in navigator){
       const key='itp_legacy_cleanup_V223_E_FIX1';
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.2-STATION-NAV-LIVE-FIRST</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.4-CORRIDOR-ACCESS-LOGIC</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -1820,6 +1820,7 @@ const transferStations={
   'M1A Metro|Marmaray':['yenikapi'], 'Marmaray|M1A Metro':['yenikapi'],
   'M1B Metro|Marmaray':['yenikapi'], 'Marmaray|M1B Metro':['yenikapi'],
   'M1A Metro|M2 Metro':['yenikapi'], 'M2 Metro|M1A Metro':['yenikapi'],
+  'M1B Metro|M2 Metro':['yenikapi'], 'M2 Metro|M1B Metro':['yenikapi'],
   'M2 Metro|Marmaray':['yenikapi'], 'Marmaray|M2 Metro':['yenikapi'],
   'M1A Metro|T1 Tramvay':['aksaray','zeytinburnu_hub'], 'T1 Tramvay|M1A Metro':['aksaray','zeytinburnu_hub'],
   'M3 Metro|Marmaray':['bakirkoy_hub'], 'Marmaray|M3 Metro':['bakirkoy_hub'],
@@ -2144,7 +2145,7 @@ async function buildAdaptiveStartAccess(placeId,target,origin){
     candidates=rows.map(st=>({station:st.station,mode:st.mode,label:st.label,lat:st.lat,lng:st.lng,coord:st}))
       .filter(x=>gpsDistanceKm(startCoord,x.coord)<=3)
       .sort((a,b)=>gpsDistanceKm(startCoord,a.coord)-gpsDistanceKm(startCoord,b.coord)).slice(0,10);
-    for(const c of candidates){ try{ c.path=minimumRailRoute(c.station,target?.id,4,null,c.mode); }catch(_){c.path=null;} }
+    for(const c of candidates){ try{ c.path=minimumRailRoute(c.station,target?.id,4,null,c.mode); if(c.path && !routeHonorsStartMode(c.path,c.mode)) c.path=null; }catch(_){c.path=null;} }
     candidates=candidates.filter(c=>c.path);
   }else candidates=adaptiveStationCandidatesForStart(placeId,target);
   if(!candidates.length) return null;
@@ -2162,7 +2163,13 @@ async function buildAdaptiveStartAccess(placeId,target,origin){
     }
     return null;
   }
-  const scored=evaluated.map(c=>({...c,score:routeDecisionScore(c.path||[])+c.walkMinutes*4}));
+  // Erişim kararı artık yalnızca 'en yakın raylı sistem' mantığıyla verilmez.
+  // Özellikle havalimanı gibi koridor-hedeflerinde, birkaç dakika daha yakın
+  // olan metro; kullanıcıyı gereksiz bir hatta bindirip daha sonra Marmaray'a
+  // geri döndürüyorsa tercih edilmemelidir. Önce ana koridor kalitesini,
+  // ardından yürüme maliyetini değerlendiriyoruz.
+  const baseScored=evaluated.map(c=>({...c,score:routeDecisionScore(c.path||[])+c.walkMinutes*12}));
+  const scored=baseScored.map(c=>({...c,score:c.score+currentLocationCorridorPenalty(c,baseScored,target)}));
   const direct=scored.filter(c=>c.walkMinutes<=15).sort((a,b)=>a.score-b.score||a.walkMinutes-b.walkMinutes)[0];
   if(direct) return {type:'walk',...direct,adaptiveStart:true,direct:false};
   for(const c of scored.sort((a,b)=>a.score-b.score)){
@@ -2172,6 +2179,31 @@ async function buildAdaptiveStartAccess(placeId,target,origin){
     return {type:'feeder',...c,adaptiveStart:true,direct:false,walkMinutes:Number(feeder.walkMinutes||c.walkMinutes),feeder,stopId:`feeder_${placeId}`,stopQuery:feeder.stopQuery};
   }
   return {type:'no-feeder',...scored.sort((a,b)=>a.score-b.score)[0],adaptiveStart:true,direct:false};
+}
+function currentLocationCorridorPenalty(candidate,allCandidates,target){
+  // Hedefe göre koridor önceliği. Bu bir 'Marmaray her zaman kazanır' kuralı
+  // değildir: yalnızca Marmaray adayı, başka bir raylı adaydan makul bir
+  // yürüyüş farkıyla erişilebiliyor ve ana rota belirgin biçimde daha iyi ise
+  // yakınlık avantajının bu seçimi bozmasını engeller.
+  if(target?.id!=='istanbul-airport') return 0;
+  if(!candidate?.path) return 9999;
+  const candidateHasMarmaray=(candidate.mode==='Marmaray');
+  const marmarayCandidates=(allCandidates||[]).filter(c=>c!==candidate && c.mode==='Marmaray');
+  if(!marmarayCandidates.length) return 0;
+  const bestMarmaray=marmarayCandidates.slice().sort((a,b)=>a.score-b.score||a.walkMinutes-b.walkMinutes)[0];
+  const walkGap=Number(candidate.walkMinutes)-Number(bestMarmaray.walkMinutes);
+  // Yalnızca Marmaray adayı diğer raylı seçeneğe göre en fazla 7 dk daha uzaktaysa
+  // koridor avantajı uygula. Diğer istasyon Marmaray'dan belirgin biçimde daha
+  // yakınsa Marmaray lehine yapay ceza uygulanmamalıdır.
+  if(!Number.isFinite(walkGap) || walkGap<0 || walkGap>7) return 0;
+  const cq=routeQuality(candidate.path||[]), mq=routeQuality(bestMarmaray.path||[]);
+  const transferGain=cq.transitTransfers-mq.transitTransfers;
+  const railStopGain=cq.railStops-mq.railStops;
+  // Marmaray'a erişim aynı/az yürüyüşle sağlanıyor ve en az bir belirgin
+  // kalite avantajı taşıyorsa, sırf diğer istasyon birkaç dakika yakın diye
+  // metro başlangıcını seçme.
+  if(!candidateHasMarmaray && (transferGain>=1 || railStopGain>=4)) return 80;
+  return 0;
 }
 function adaptiveStartAccessSteps(placeId,access){
   const from=places.find(p=>p.id===placeId)?.name || placeId;
@@ -3013,6 +3045,16 @@ function minimumRailRoute(a,b,maxTransfers=4,endAccessOverride=null,startModeOve
   // Aynı başlangıç ve hedef için sahte bir yol üretme. UI normalde aynı
   // kartı ikinci kez seçtirmez; bu koruma rota motorunu da deterministik tutar.
   if(a===b) return null;
+  // Havalimanı için doğu yakasından gelen açık başlangıç hattını genel
+  // "en az aktarma" aramasına bırakma. Aksi halde Marmaray'ın Halkalı
+  // üzerinden M11'e bağlanan 1 aktarmalı fakat aşırı uzun koridoru,
+  // Pendik M4 gibi daha doğru koridorların önüne geçebilir.
+  if(startModeOverride && b==='istanbul-airport'){
+    const airportPreferred=preferredAirportRailRouteFromStart(a,startModeOverride,b);
+    if(airportPreferred && routeHonorsStartMode(airportPreferred,startModeOverride)){
+      return airportPreferred;
+    }
+  }
   const walkKm = touristWalkDistanceKm(a,b);
   const aObj = places.find(p=>p.id===a);
   const bObj = places.find(p=>p.id===b);
@@ -3305,7 +3347,113 @@ function routeHonorsStartMode(path,startMode){
     const normalizedMode=String(startMode).replace(/\s+Metro$/i,'').trim();
     return first.text.includes(startMode) || (normalizedMode && first.text.includes(normalizedMode));
   }
+  // Bazı eski rota üretim yolları aynı-istasyon transferinin metadata'sını
+  // taşımadan adımı üretebiliyor. İlk adım fiziksel olarak aynı istasyondaysa
+  // ve transferStations içinde başlangıç hattı → ilk hat açıkça kayıtlıysa,
+  // transferi yine de doğrulanmış kabul et. Böylece F4→M6 veya T1→Metrobüs
+  // gibi gerçek ilk aktarmalar gereksiz yere reddedilmez; kayıt dışı aktarma
+  // kesinlikle kabul edilmez.
+  const firstStep=Array.isArray(path?.[0]) ? path[0] : null;
+  if(firstStep && firstStep[0]===firstStep[1] && firstStep[2]!==startMode){
+    const node=firstStep[0], firstMode=firstStep[2];
+    const registered=(transferStations?.[`${startMode}|${firstMode}`]||[]).includes(node);
+    if(registered) return true;
+  }
   return false;
+}
+
+
+function preferredAirportRailRouteFromStart(startNode,startMode,targetId='istanbul-airport'){
+  if(targetId!=='istanbul-airport' || !startMode || !railLines[startMode]) return null;
+  const addLeg=(line,from,to)=>{
+    if(!railLines[line]?.order?.includes(from) || !railLines[line]?.order?.includes(to)) return null;
+    return makeRailLeg(line,from,to);
+  };
+  const transfer=(fromLine,toLine,node)=>{
+    if(!Array.isArray(transferStations[`${fromLine}|${toLine}`]) || !transferStations[`${fromLine}|${toLine}`].includes(node)) return null;
+    const meta=surfaceTransferRegistry[`${node}|${fromLine}|${toLine}`] || surfaceTransferRegistry[`${node}|${toLine}|${fromLine}`] || {type:'station_internal',difficulty:0,walkMinutes:0,label:'İstasyon içi aktarma',verified:true};
+    return [[node,node,toLine,
+      `<b>${railLines[fromLine].labels?.[node]||nodeLabel(node)}</b> istasyonunda <b>${toLine}</b> hattına aktarma yap.`,
+      {surfaceTransfer:meta}]];
+  };
+  const finishFromYenikapi=()=>{
+    const m2=addLeg('M2 Metro','yenikapi','gayrettepe');
+    const t1=transfer('Marmaray','M2 Metro','yenikapi');
+    const t2=transfer('M2 Metro','M11 Metro','gayrettepe');
+    const m11=addLeg('M11 Metro','gayrettepe','istanbul-airport');
+    if(!m2||!t1||!t2||!m11) return null;
+    return [t1[0],m2,t2[0],m11];
+  };
+  const viaMarmaray=(fromNode,fromLine,transferNode)=>{
+    const first=(fromNode===transferNode) ? null : addLeg(fromLine,fromNode,transferNode);
+    const tr=transfer(fromLine,'Marmaray',transferNode);
+    const mar=addLeg('Marmaray',transferNode,'yenikapi');
+    const tail=finishFromYenikapi();
+    if(!tr||!mar||!tail) return null;
+    const path=[...(first?[first]:[]),tr[0],mar,...tail];
+    return hasCoherentRailPath(path)&&hasVerifiedTransitTransfers(path)?path:null;
+  };
+
+  if(startMode==='M4 Metro' && railLines['M4 Metro'].order.includes(startNode)){
+    return viaMarmaray(startNode,'M4 Metro','ayrilik');
+  }
+  if(startMode==='M5 Metro' && railLines['M5 Metro'].order.includes(startNode)){
+    return viaMarmaray(startNode,'M5 Metro','uskudar');
+  }
+  if(startMode==='M8 Metro' && railLines['M8 Metro'].order.includes(startNode)){
+    return viaMarmaray(startNode,'M8 Metro','bostanci');
+  }
+  if(startMode==='Marmaray' && railLines.Marmaray.order.includes(startNode)){
+    const mar=addLeg('Marmaray',startNode,'yenikapi');
+    const tail=finishFromYenikapi();
+    if(mar&&tail){
+      const path=[mar,...tail];
+      if(hasCoherentRailPath(path)&&hasVerifiedTransitTransfers(path)) return path;
+    }
+  }
+  if(startMode==='M2 Metro' && railLines['M2 Metro'].order.includes(startNode)){
+    const m2=(startNode==='gayrettepe') ? null : addLeg('M2 Metro',startNode,'gayrettepe');
+    const tr=transfer('M2 Metro','M11 Metro','gayrettepe');
+    const m11=addLeg('M11 Metro','gayrettepe','istanbul-airport');
+    if(tr&&m11){
+      const path=[...(m2?[m2]:[]),tr[0],m11];
+      if(hasCoherentRailPath(path)&&hasVerifiedTransitTransfers(path)) return path;
+    }
+  }
+  if(startMode==='M7 Metro' && railLines['M7 Metro'].order.includes(startNode)){
+    const m7=(startNode==='kagithane_hub') ? null : addLeg('M7 Metro',startNode,'kagithane_hub');
+    const tr=transfer('M7 Metro','M11 Metro','kagithane_hub');
+    const m11=addLeg('M11 Metro','kagithane_hub','istanbul-airport');
+    if(tr&&m11){
+      const path=[...(m7?[m7]:[]),tr[0],m11];
+      if(hasCoherentRailPath(path)&&hasVerifiedTransitTransfers(path)) return path;
+    }
+  }
+  if(startMode==='M3 Metro' && railLines['M3 Metro'].order.includes(startNode)){
+    const m3=(startNode==='kayasehir_hub') ? null : addLeg('M3 Metro',startNode,'kayasehir_hub');
+    const tr=transfer('M3 Metro','M11 Metro','kayasehir_hub');
+    const m11=addLeg('M11 Metro','kayasehir_hub','istanbul-airport');
+    if(tr&&m11){
+      const path=[...(m3?[m3]:[]),tr[0],m11];
+      if(hasCoherentRailPath(path)&&hasVerifiedTransitTransfers(path)) return path;
+    }
+  }
+  if((startMode==='M1A Metro'||startMode==='M1B Metro') && railLines[startMode].order.includes(startNode)){
+    const m1=addLeg(startMode,startNode,'yenikapi');
+    const tr1=transfer(startMode,'M2 Metro','yenikapi');
+    const m2=addLeg('M2 Metro','yenikapi','gayrettepe');
+    const tr2=transfer('M2 Metro','M11 Metro','gayrettepe');
+    const m11=addLeg('M11 Metro','gayrettepe','istanbul-airport');
+    if(m1&&tr1&&m2&&tr2&&m11){
+      const path=[m1,tr1[0],m2,tr2[0],m11];
+      if(hasCoherentRailPath(path)&&hasVerifiedTransitTransfers(path)) return path;
+    }
+  }
+  if(startMode==='M11 Metro' && railLines['M11 Metro'].order.includes(startNode)){
+    const m11=addLeg('M11 Metro',startNode,'istanbul-airport');
+    if(m11) return [m11];
+  }
+  return null;
 }
 
 function explicitStartLineRoute(a,b,startMode,endAccessOverride=null,maxTransfers=4){
@@ -3368,7 +3516,18 @@ function explicitStartLineRoute(a,b,startMode,endAccessOverride=null,maxTransfer
   return best;
 }
 
-minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOverride=null){
+minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOverride=null){ 
+  // Havalimanı koridoru için explicitStartLineRoute() tek başına yeterli değildir:
+  // M4→Marmaray→M11 gibi daha az aktarmalı ama Halkalı üzerinden aşırı uzun
+  // rotayı seçebilir. Önce doğrulanmış pratik koridoru sabitle.
+  if(startModeOverride && b==='istanbul-airport' && !endAccessOverride){
+    const airportPreferred=preferredAirportRailRouteFromStart(a,startModeOverride,b);
+    if(airportPreferred && routeHonorsStartMode(airportPreferred,startModeOverride)){
+      railRouteCache.set(`${a}|${b}|${maxTransfers}||${startModeOverride}`,airportPreferred);
+      return airportPreferred;
+    }
+  }
+
   // Fiziksel düğüm aynıysa rota motoru yapay bir "aynı istasyonda tekrar
   // aktarma" adımı üretmemeli. Özellikle çok hatlı istasyonlarda wrapper'ın
   // hedef-hat adayları bu erken dönüşü atlayıp sahte bir transfer yaratabiliyordu.
@@ -4170,7 +4329,20 @@ function staticGpsStationCoordinates(){
     {station:'gayrettepe',mode:'M2 Metro',label:'Gayrettepe M2',lat:41.06770,lng:29.01270},
     {station:'levent',mode:'M2 Metro',label:'Levent M2',lat:41.08000,lng:29.01000},
     {station:'dort_levent',mode:'M2 Metro',label:'4. Levent M2',lat:41.08700,lng:29.00800},
-    {station:'haciosman_hub',mode:'M2 Metro',label:'Hacıosman M2',lat:41.13980,lng:29.02940}
+    {station:'haciosman_hub',mode:'M2 Metro',label:'Hacıosman M2',lat:41.13980,lng:29.02940},
+    // Ana havalimanı koridorlarının mevcut konum aday havuzunda eksik kalmaması için
+    // doğrulanmış ana aktarma düğümleri. Kağıthane M7↔M11, Kayaşehir M3↔M11 ve
+    // Olimpiyat M9↔M11 aynı koridor karar motorunun gerçek giriş noktalarıdır.
+    {station:'kagithane_hub',mode:'M7 Metro',label:'Kağıthane M7',lat:41.07965,lng:28.97312},
+    {station:'kagithane_hub',mode:'M11 Metro',label:'Kağıthane M11',lat:41.07965,lng:28.97312},
+    {station:'kayasehir_hub',mode:'M3 Metro',label:'Kayaşehir M3',lat:41.11833,lng:28.76639},
+    {station:'kayasehir_hub',mode:'M11 Metro',label:'Kayaşehir M11',lat:41.11833,lng:28.76639},
+    {station:'olimpiyat',mode:'M9 Metro',label:'Olimpiyat M9',lat:41.07954,lng:28.76719},
+    {station:'olimpiyat',mode:'M11 Metro',label:'Olimpiyat M11',lat:41.05629,lng:28.77441},
+    {station:'halkali_stadi_m11',mode:'M11 Metro',label:'Halkalı Stadı M11',lat:41.05629,lng:28.77441},
+    {station:'halkali',mode:'M11 Metro',label:'Halkalı M11',lat:41.01991,lng:28.76835},
+    {station:'ibn_haldun_m11',mode:'M11 Metro',label:'İbn Haldun Üniversitesi M11',lat:41.13965,lng:28.79385},
+    {station:'arnavutkoy_hastane',mode:'M11 Metro',label:'Arnavutköy Hastane M11',lat:41.17929,lng:28.74774}
   ];
 }
 function resolveCurrentLocationStation(){
@@ -4592,7 +4764,9 @@ function buildRouteToTargetCore(target,gpsStart,gpsStation){
  // ekler; böylece seçili başlangıç hattı sessizce başka bir paralel hatta
  // dönüştürülemez.
  const explicitStartRoute=(!target?.isStation && selectedStartMode)
-   ? minimumRailRoute(startNode,target.id,4,null,selectedStartMode)
+   ? ((gpsStation?.adaptiveStart && Array.isArray(gpsStation.path) && routeHonorsStartMode(gpsStation.path,selectedStartMode))
+      ? gpsStation.path
+      : minimumRailRoute(startNode,target.id,4,null,selectedStartMode))
    : null;
  const forcedRoute=(stationTargetPath || explicitStartRoute) ? null : (anatolianToAirportRailRoute(startNode,target.id) || specialFerryTouristRoute(startNode,target.id));
  const airportPreferred=(stationTargetPath || explicitStartRoute) ? null : (forcedRoute ? null : airportToAnatolianRailRoute(startNode,target.id));
@@ -4836,7 +5010,7 @@ render();
 // QA hook: automatically available without affecting normal application flow.
 
 </script>
-<script>/* V230.2-STATION-NAV-LIVE-FIRST focused QA */
+<script>/* V230.4-CORRIDOR-ACCESS-LOGIC focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
@@ -5017,7 +5191,32 @@ window.deepRouteRegressionQA=deepRouteRegressionQA;
 </script>
 <script>/* V230.2 station navigation / coordinate integrity QA */
 (function(){
- function v230StationNavigationCoordinateQA(){
+ 
+function v230AirportCorridorQA(){
+  const out={name:'v230AirportCorridorQA',status:'PASS',checks:[]};
+  const test=(id,ok,detail)=>{out.checks.push({id,ok,detail});if(!ok)out.status='FAIL';};
+  const cases=[
+    ['pendik','M4 Metro',['M4 Metro','Marmaray','M2 Metro','M11 Metro']],
+    ['pendik','Marmaray',['Marmaray','M2 Metro','M11 Metro']],
+    ['uskudar','M5 Metro',['M5 Metro','Marmaray','M2 Metro','M11 Metro']],
+    ['bostanci','M8 Metro',['M8 Metro','Marmaray','M2 Metro','M11 Metro']],
+    ['gayrettepe','M2 Metro',['M2 Metro','M11 Metro']],
+    ['kagithane_hub','M7 Metro',['M7 Metro','M11 Metro']],
+    ['kayasehir_hub','M3 Metro',['M3 Metro','M11 Metro']]
+  ];
+  for(const [node,mode,expected] of cases){
+    const path=preferredAirportRailRouteFromStart(node,mode,'istanbul-airport');
+    const modes=(path||[]).map(x=>x[2]).filter((m,i,a)=>i===0||m!==a[i-1]);
+    test(`${node}-${mode}`,JSON.stringify(modes)===JSON.stringify(expected)
+      && routeHonorsStartMode(path,mode)
+      && hasCoherentRailPath(path)
+      && hasVerifiedTransitTransfers(path),
+      `expected=${expected.join('>')} actual=${modes.join('>')}`);
+  }
+  return out;
+}
+
+function v230StationNavigationCoordinateQA(){
   const out={status:'PASS',tests:[],failures:[],summary:{}};
   const add=(id,ok,detail)=>{out.tests.push({id,status:ok?'PASS':'FAIL',detail});if(!ok)out.failures.push({id,detail});};
   const railEntries=[];
@@ -5177,7 +5376,7 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230.2-STATION-NAV-LIVE-FIRST');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.9-CORRIDOR-ACCESS-200QA-FIX');
 })();
 
 function v227WalkingNavigationQA(){
