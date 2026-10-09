@@ -33,6 +33,7 @@ function render(){
 async function run(){
   const frame=document.getElementById('app');
   await new Promise((resolve,reject)=>{
+    if(frame.contentDocument && frame.contentDocument.readyState==='complete'){resolve();return;}
     const timer=setTimeout(()=>reject(new Error('index.html yükleme zaman aşımı')),10000);
     frame.addEventListener('load',()=>{clearTimeout(timer);resolve()}, {once:true});
   });
@@ -74,16 +75,14 @@ async function run(){
   });
 
   test('selectStart fonksiyonu hedef kaybına neden olmuyor',()=>{
-    const startCandidates=[...w.document.querySelectorAll('[onclick*="selectStart("]')];
-    if(!startCandidates.length) return 'Başlangıç kartı bulunamadı';
-    const ids=startCandidates.map(node=>(node.getAttribute('onclick')||'').match(/selectStart\\((['"])(.*?)\\1\\)/)).filter(Boolean).map(m=>m[2]);
-    if(!ids.length) return 'Kart ID çözülemedi';
+    const card=w.document.querySelector('#list .place[data-id]');
+    if(!card) return 'Başlangıç kartı bulunamadı';
+    const id=card.getAttribute('data-id');
     const original=w.buildRouteToTarget;
     w.buildRouteToTarget=()=>{};
     w.eval("selectedTarget={id:'qa-target',name:'QA hedefi'}");
     const before=w.eval('selectedTarget');
-    w.selectStart(ids[0]);
-    w.buildRouteToTarget=original;
+    try{w.selectStart(id);}finally{w.buildRouteToTarget=original;}
     return w.eval('selectedTarget')===before;
   });
 
