@@ -1572,6 +1572,16 @@ function routeToStationTarget(startId,targetStationId,targetMode=null,startMode=
   return minimumRailRoute(startId,targetStationId,4,endAccess,startMode);
 }
 function route(a,b){
+  // Pendik YHT is a surface-access point rather than a rail graph node.
+  // Keep it explicit in the generic route API too (used by route QA and UI fallbacks).
+  if(b==='pendik_yht'){
+    const base=minimumRailRoute(a,'pendik',4);
+    if(base) return [...base,['pendik','pendik','İlçe içi ulaşım','<b>Pendik M4</b> noktasından <b>Pendik YHT</b> garına yüzey bağlantısını kullan.',{surfaceTransfer:surfaceTransferRegistry['pendik|M4 Metro|Pendik YHT']}]];
+  }
+  if(a==='pendik_yht'){
+    const base=minimumRailRoute('pendik',b,4);
+    if(base) return [['pendik','pendik','İlçe içi ulaşım','<b>Pendik YHT</b> garından <b>Pendik M4</b> yönüne yüzey bağlantısını kullan.',{surfaceTransfer:surfaceTransferRegistry['pendik|Pendik YHT|M4 Metro']}],...base];
+  }
   if(a===b) return null;
   // Önce fiziksel/deniz erişimini çöz. Hedef bir gerçek raylı sistem düğümü
   // olsa bile Ada → iskele → kara ulaşımı gibi erişimler, istasyon-hedef
