@@ -81,6 +81,27 @@ try {
     routeState.from === 'kadikoy_carsi' && routeState.to === 'ciya_sofrasi' && routeState.routeText.length > 0,
     JSON.stringify(routeState));
 
+  const gpsRegistryAudit = await page.evaluate(async () => {
+    try {
+      const rows = await fetchGpsStationCoordinates();
+      const ids = new Set(['umraniye','dudullu','cekmekoy','mecidiyekoy','levent','kagithane_hub','kayasehir_hub']);
+      return {
+        ok: rows.length > 0,
+        count: rows.length,
+        relevant: rows.filter(row => ids.has(row.station)).map(row => ({
+          station: row.station, mode: row.mode, label: row.label, lat: row.lat, lng: row.lng
+        })),
+        finite: rows.every(row => Number.isFinite(row.lat) && Number.isFinite(row.lng))
+      };
+    } catch (error) {
+      return { ok: false, count: 0, relevant: [], finite: false, error: String(error) };
+    }
+  });
+  console.log('Official IBB station registry diagnostic: ' + JSON.stringify(gpsRegistryAudit));
+  record('official IBB station registry returns mapped coordinates',
+    gpsRegistryAudit.ok && gpsRegistryAudit.finite && gpsRegistryAudit.count > 0,
+    JSON.stringify(gpsRegistryAudit));
+
   const swState = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return { supported: false, controlled: false, cacheNames: [] };
     const reg = await navigator.serviceWorker.ready;
