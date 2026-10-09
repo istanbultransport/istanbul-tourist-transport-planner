@@ -104,6 +104,8 @@ if (regression) {
       return current && current.lat === place.lat && current.lng === place.lng;
     }));
     check('business gap probes are explicitly marked', regression.locations.filter(place => place.source === 'business-directory-not-in-catalog').length === 4);
+    const businessGaps = regression.locations.filter(place => place.source === 'business-directory-not-in-catalog');
+    check('business gap probes have an address and coordinate provenance', businessGaps.every(place => typeof place.address === 'string' && place.address.length > 10 && Number.isFinite(place.lat) && Number.isFinite(place.lng) && Array.isArray(place.sources) && place.sources.length > 0 && typeof place.coordinateStatus === 'string'));
   }
 }
 
