@@ -39,7 +39,14 @@ try {
 
   record('live site responds successfully', !!response?.ok(), 'HTTP ' + response?.status() + ' ' + lastError);
   record('live build matches current main build', actualBuild === expectedBuild, 'live=' + actualBuild + ' expected=' + expectedBuild);
-  record('live app renders place cards', await page.locator('#list .place[data-id]').count() > 0);
+  const initialCardCount = await page.locator('#list .place[data-id]').count().catch(() => 0);
+  record('live app renders place cards', initialCardCount > 0, 'count=' + initialCardCount);
+  console.log('Live smoke URL: ' + liveUrl);
+  console.log('Expected build: ' + expectedBuild + '; live build: ' + actualBuild);
+  if (!response?.ok() || initialCardCount === 0) {
+    console.error('Live site unavailable or did not render cards: HTTP ' + response?.status() + '; ' + lastError);
+    throw new Error('Live smoke stopped: deployed app could not be loaded.');
+  }
   for (const id of ['four_seasons_sultanahmet','karakoy_lokantasi','ciya_sofrasi']) {
     const count = await page.locator('#list .place[data-id="' + id + '"]').count();
     record('live catalogue includes ' + id, count === 1, 'count=' + count);
@@ -65,7 +72,7 @@ try {
   await page.locator('#targetPlaceSearch').fill('Çiya Sofrası');
   await page.locator('#list .place[data-id="ciya_sofrasi"]').click();
   await page.waitForFunction(() => selectedTarget?.id === 'ciya_sofrasi' &&
-    getComputedStyle(document.getElementById('route')).display !== 'none', { timeout: 20000 });
+    getComputedStyle(document.getElementById('route')).display !== 'none', null, { timeout: 20000 });
   const routeState = await page.evaluate(() => ({
     from: start?.id || null, to: selectedTarget?.id || null,
     routeText: document.getElementById('route')?.innerText?.trim() || ''
@@ -106,8 +113,6 @@ try {
 
   record('no uncaught JavaScript errors on live site', pageErrors.length === 0, pageErrors.slice(0, 8).join(' | '));
   record('no JavaScript console errors on live site', consoleErrors.length === 0, consoleErrors.slice(0, 8).join(' | '));
-  console.log('Live smoke URL: ' + liveUrl);
-  console.log('Expected build: ' + expectedBuild + '; live build: ' + actualBuild);
   console.log('Live smoke QA: ' + passed.length + ' passed, ' + failures.length + ' failed');
   for (const name of passed) console.log('PASS ' + name);
   for (const name of failures) console.error('FAIL ' + name);
