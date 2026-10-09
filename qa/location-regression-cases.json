@@ -433,8 +433,16 @@
       "type": "hotel",
       "side": "Avrupa Yakası",
       "source": "business-directory-not-in-catalog",
-      "address": "Sultanahmet, Tevkifhane Sk. No:1, 34122 Fatih/İstanbul, Türkiye",
-      "needsCoordinateVerification": true
+      "address": "Tevkifhane Sokak No. 1, 34122 Sultanahmet-Eminönü, Fatih/İstanbul",
+      "needsCoordinateVerification": true,
+      "lat": 41.00654,
+      "lng": 28.98012,
+      "verification": "Official Four Seasons address; coordinates cross-checked against multiple map listings.",
+      "sources": [
+        "https://www.fourseasons.com/istanbul/contact-us/",
+        "https://mapcarta.com/32268256"
+      ],
+      "coordinateStatus": "cross-checked-not-surveyed"
     },
     {
       "id": "karakoy_lokantasi",
@@ -442,8 +450,16 @@
       "type": "restaurant",
       "side": "Avrupa Yakası",
       "source": "business-directory-not-in-catalog",
-      "address": "Kemankeş Mahallesi, Kemankeş Cd. No:57, 34425 Beyoğlu/İstanbul, Türkiye",
-      "needsCoordinateVerification": true
+      "address": "Kemankeş Mahallesi, Kemankeş Caddesi No:57, 34425 Beyoğlu/İstanbul",
+      "needsCoordinateVerification": true,
+      "lat": 41.02349,
+      "lng": 28.97848,
+      "verification": "Address confirmed by Michelin Guide; coordinates cross-checked against local map listings.",
+      "sources": [
+        "https://guide.michelin.com/tr/tr/istanbul-province/istanbul/restaurant/karakoy-lokantas%C4%B1",
+        "https://menuburada.com/karakoy-lokantasi-karakoy-istanbul/"
+      ],
+      "coordinateStatus": "cross-checked-not-surveyed"
     },
     {
       "id": "ciya_sofrasi",
@@ -451,7 +467,16 @@
       "type": "restaurant",
       "side": "Anadolu Yakası",
       "source": "business-directory-not-in-catalog",
-      "needsCoordinateVerification": true
+      "needsCoordinateVerification": true,
+      "lat": 40.98932,
+      "lng": 29.0244,
+      "address": "Caferağa, Güneşlibahçe Sokak No:43, Kadıköy/İstanbul",
+      "verification": "Coordinates and address cross-checked across two local place directories.",
+      "sources": [
+        "https://www.haritamap.com/lokasyon/ciya-sofrasi-kadikoy-930",
+        "https://burayagidelim.com/mekan/istanbul/ciya-sofrasi"
+      ],
+      "coordinateStatus": "cross-checked-not-surveyed"
     },
     {
       "id": "faros_karakoy",
@@ -459,8 +484,16 @@
       "type": "restaurant",
       "side": "Avrupa Yakası",
       "source": "business-directory-not-in-catalog",
-      "address": "Kemankeş Karamustafa Paşa, Fransız Geçidi Sokağı İş Merkezi No:53 D:8, 34425 Beyoğlu/İstanbul, Türkiye",
-      "needsCoordinateVerification": true
+      "address": "Kemankeş Karamustafa Paşa, Fransız Geçidi Sokak İş Merkezi No:53 D:8, Beyoğlu/İstanbul",
+      "needsCoordinateVerification": true,
+      "lat": 41.0229,
+      "lng": 28.978,
+      "verification": "Business directory address confirmed; coordinates approximate from the address/nearby place and must be confirmed on a map before production use.",
+      "sources": [
+        "https://www.google.com/maps/search/Faros+Karak%C3%B6y+Istanbul",
+        "https://food.turkeyturism.com/en/karakoy-lokantasi-90-212-292-44-55.html"
+      ],
+      "coordinateStatus": "approximate-needs-map-confirmation"
     },
     {
       "id": "besiktas",
