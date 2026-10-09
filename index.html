@@ -3,14 +3,14 @@
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.12.24-KAYASEHIR-M11-ENTRANCE">
+<meta name="build-id" content="V230.12.25-GPS-ROUTE-SCORING">
 <meta name="theme-color" content="#10243b">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>Istanbul Tourist Transport Planner — V230.12.19</title>
 <script>
 (function(){
-  window.__APP_BUILD_ID__='V230.12.24-KAYASEHIR-M11-ENTRANCE';
+  window.__APP_BUILD_ID__='V230.12.25-GPS-ROUTE-SCORING';
   try{
     if('serviceWorker' in navigator){
       window.addEventListener('load',function(){
@@ -790,6 +790,11 @@ function stepTitle(mode){
  return `${icons[mode]||'🚉'} ${mode}`;
 }
 function stepNodeLabel(id,mode){
+  // A ferry leg ends at a pier, not at whichever rail line first claims the same node.
+  if(mode==='Vapur'){
+    const raw=String(nodeLabel(id)||id).replace(/\s+(?:M\d+(?:\s+Metro)?|Marmaray|T\d+\s+Tramvay|Metrobüs|F\d+\s+Füniküler).*$/,'').trim();
+    return /İskelesi$/i.test(raw) ? raw : `${raw} İskelesi`;
+  }
   const line=railLines?.[mode];
   if(line && line.labels?.[id]) return line.labels[id];
   const stationAliases={
@@ -1552,7 +1557,7 @@ function routeToStationTarget(startId,targetStationId,targetMode=null,startMode=
         if(!suffix) continue;
         const path=[...(prefix||[]),...(Array.isArray(suffix[0])?suffix:[suffix])];
         if(!hasCoherentRailPath(path)) continue;
-        const score=routeDecisionScore(path);
+        const score=routeDecisionScore(path,startMode);
         if(!best || score<best.score) best={path,score};
       }
       if(best) return best.path;
@@ -1788,10 +1793,23 @@ window.v223AcceptanceQA=function(){
     'Anadolu Hisarı → Kalamış ters yönde deniz erişimi korunuyor.');
 
   // 13) No false short-walk regression.
+  const hisariWalk=touristWalkTime('uskudar','anadolu_hisari');
+  const hisariLastMile=lastMileWalkMinutes.anadolu_hisari;
   test('13-no-false-hisari-walk',
-    !Number.isFinite(Number(touristWalkTime('uskudar','anadolu_hisari'))) &&
-    !Number.isFinite(Number(lastMileWalkMinutes.anadolu_hisari)),
+    (hisariWalk===null || hisariWalk===undefined || !Number.isFinite(Number(hisariWalk))) &&
+    (hisariLastMile===null || hisariLastMile===undefined || !Number.isFinite(Number(hisariLastMile))),
     'Üsküdar → Anadolu Hisarı için sahte 2 dk yürüyüş değeri yok.');
+
+  const ferryLabel=stepNodeLabel('uskudar','Vapur');
+  test('14-ferry-pier-label',ferryLabel==='Üsküdar İskelesi',`Vapur hedefi hat etiketi yerine iskele olarak gösteriliyor: ${ferryLabel}`);
+  const stopPath=[['pendik','yakacik','M4 Metro',''],['yakacik','kartal_hub','M4 Metro',''],['kartal_hub','soganlik','M4 Metro','']];
+  const compressedStops=compressConsecutiveTransitStepsForDisplay(stopPath);
+  test('15-consecutive-stops-compressed',compressedStops.length===1&&compressedStops[0][0]==='pendik'&&compressedStops[0][1]==='soganlik','Aynı hat üzerindeki ara duraklar rota özetinde tek yolculuk olarak gösteriliyor.');
+  const agvaM4=minimumRailRoute('pendik','agva',4,null,'M4 Metro');
+  const agvaMarmaray=minimumRailRoute('pendik','agva',4,null,'Marmaray');
+  const agvaM4Score=routeDecisionScore(agvaM4,'M4 Metro')+GPS_ACCESS_WALK_WEIGHT;
+  const agvaMarmarayScore=routeDecisionScore(agvaMarmaray,'Marmaray')+14*GPS_ACCESS_WALK_WEIGHT;
+  test('16-gps-pendik-agva-boarding-score',!!agvaMarmaray&&agvaMarmarayScore<agvaM4Score,`Başlangıç hattı doğru skorlanıyor; M4=${agvaM4Score}, Marmaray=${agvaMarmarayScore} (1 dk / 14 dk erişim senaryosu).`);
 
   return out;
 };
@@ -2212,7 +2230,7 @@ async function buildAdaptiveStartAccess(placeId,target,origin){
   // olan metro; kullanıcıyı gereksiz bir hatta bindirip daha sonra Marmaray'a
   // geri döndürüyorsa tercih edilmemelidir. Önce ana koridor kalitesini,
   // ardından yürüme maliyetini değerlendiriyoruz.
-  const baseScored=evaluated.map(c=>({...c,score:routeDecisionScore(c.path||[])+c.walkMinutes*12}));
+  const baseScored=evaluated.map(c=>({...c,score:routeDecisionScore(c.path||[],c.mode)+c.walkMinutes*GPS_ACCESS_WALK_WEIGHT}));
   const scored=baseScored.map(c=>({...c,score:c.score+currentLocationCorridorPenalty(c,baseScored,target)}));
 
   // V230.12.8 HARD GUARD: when the GPS is near a physical interchange node
@@ -3408,7 +3426,7 @@ function minimumRailRoute(a,b,maxTransfers=4,endAccessOverride=null,startModeOve
   // Öncelik: daha az aktarma; aynı aktarma sayısında daha kısa hat sıçraması.
   const queue=[];
   const seen=new Set();
-  const queueCompare=(a,b)=>routeDecisionScore(a.path)-routeDecisionScore(b.path) || countModeTransfers(a.path)-countModeTransfers(b.path) || railStopCost(a.path)-railStopCost(b.path);
+  const queueCompare=(a,b)=>routeDecisionScore(a.path,explicitStartMode)-routeDecisionScore(b.path,explicitStartMode) || countModeTransfers(a.path)-countModeTransfers(b.path) || railStopCost(a.path)-railStopCost(b.path);
   const heapPush=(item)=>{
     queue.push(item);
     let i=queue.length-1;
@@ -3475,7 +3493,7 @@ function minimumRailRoute(a,b,maxTransfers=4,endAccessOverride=null,startModeOve
         if(!hasCoherentRailPath(full)) continue;
         const tc=countModeTransfers(full);
         const sc=railStopCost(full);
-        const score=routeDecisionScore(full);
+        const score=routeDecisionScore(full,explicitStartMode);
         if(score<bestScore || (score===bestScore && tc<countModeTransfers(bestRoute||[]))){ bestScore=score; bestRoute=full; }
       }
     }
@@ -3825,7 +3843,7 @@ minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOve
           || {type:'station_internal',difficulty:0,walkMinutes:0,label:'İstasyon içi aktarma'};
         const transferStep=[sharedStart,sharedStart,altMode,`<b>${railLines[startModeOverride].labels?.[sharedStart]||nodeLabel(sharedStart)}</b> istasyonunda <b>${altMode}</b> hattına aktarma yap.`,{surfaceTransfer:meta}];
         const combined=[transferStep,...altPath];
-        if(!altBest || compareRouteQuality(combined,altBest)<0) altBest=combined;
+        if(!altBest || compareRouteQuality(combined,altBest,explicitStartMode)<0) altBest=combined;
       }
       if(altBest){
         // Başlangıç hattı açıkça seçilmişse başka bir hatta sıfır-mesafeli
@@ -3833,15 +3851,15 @@ minimumRailRoute=function(a,b,maxTransfers=4,endAccessOverride=null,startModeOve
         // değiştirebilir. Küçük skor farkları için kullanıcının başlangıç
         // tercihini koru; aksi halde Kadıköy M4 → Sirkeci gibi rotalarda
         // gereksiz M4 → T3 → M4 döngüleri oluşabilir.
-        const currentScore=result ? routeDecisionScore(result) : Infinity;
-        const alternateScore=routeDecisionScore(altBest);
+        const currentScore=result ? routeDecisionScore(result,explicitStartMode) : Infinity;
+        const alternateScore=routeDecisionScore(altBest,explicitStartMode);
         if(!result || alternateScore + 30 < currentScore) result=altBest;
       }
     }
   }
   const candidates=(result || endAccessOverride || (startModeOverride && isKnownRailStationNode(b) && railLines[startModeOverride]?.order.includes(b))) ? [] : stadiumRouteCandidates(a,b,maxTransfers);
   if(candidates.length){
-    candidates.sort((x,y)=>compareRouteQuality(x.path,y.path) || x.idx-y.idx);
+    candidates.sort((x,y)=>compareRouteQuality(x.path,y.path,explicitStartMode) || x.idx-y.idx);
     result=candidates[0].path;
   }else if(!endAccessOverride && !result){
     const endCandidates=endAccessCandidates(b);
@@ -3915,6 +3933,8 @@ const PRIMARY_TRANSIT_MODES=new Set([
   'F1 Füniküler','F2 Füniküler','F3 Füniküler','F4 Füniküler',
   'Metrobüs','M1 / Metrobüs','Vapur'
 ]);
+// GPS access walking is scored consistently with ETA and independently of the nearest-line UI state.
+const GPS_ACCESS_WALK_WEIGHT=9;
 function isPrimaryTransitMode(mode){ return PRIMARY_TRANSIT_MODES.has(String(mode||'')); }
 function isBusMode(mode){ return /^(?:Otobüs|İETT)(?:\b|$)/i.test(String(mode||'')) || /^Bus$/i.test(String(mode||'')); }
 function isAccessMode(mode){ return ['Yürüyüş','İlçe içi ulaşım','Yerel ulaşım','Son ulaşım'].includes(String(mode||'')); }
@@ -3988,8 +4008,8 @@ function routeQuality(path){
   const walkBurden=walkBurdenPenalty(walkMinutes);
   return {transitTransfers,walkMinutes,localSteps,busSteps,primarySteps,primaryModeCount,mainModeCount:primaryModeCount,railStops,surfaceMinutes,surfacePenalty,walkBurden};
 }
-function routeDecisionScore(path){
-  const eta=estimatePath(path||[]);
+function routeDecisionScore(path,initialTransitMode=null){
+  const eta=estimatePath(path||[],initialTransitMode);
   const q=routeQuality(path||[]);
   // HARD RULES are handled before scoring. These are preference costs.
   // Primary transit is the preferred backbone. Transfers are intentionally
@@ -4002,11 +4022,14 @@ function routeDecisionScore(path){
   // Direct ferry can replace a rail transfer without adding a transit transfer.
   const directFerryBonus=(path||[]).some(s=>s?.[2]==='Vapur') && q.transitTransfers===0 && q.localSteps<=1 ? 80 : 0;
   const longWalkPenalty=q.walkBurden*4;
-  return eta.base*10 + longWalkPenalty + q.surfacePenalty*3 + transferPenalty + busPenalty + localPenalty + primaryModePenalty - directFerryBonus;
+  // ETA already prices ride time; a small extra cost beyond eight in-vehicle stops
+  // discourages needlessly complex long corridors without hard-coding destinations.
+  const longRideComplexityPenalty=Math.max(0,q.railStops-8)*2;
+  return eta.base*10 + longWalkPenalty + q.surfacePenalty*3 + transferPenalty + busPenalty + localPenalty + primaryModePenalty + longRideComplexityPenalty - directFerryBonus;
 }
-function busWinsOnlyWithMeaningfulAdvantage(busPath,otherPath){
+function busWinsOnlyWithMeaningfulAdvantage(busPath,otherPath,initialTransitMode=null){
   if(!routeHasBus(busPath) || routeHasBus(otherPath)) return true;
-  const b=estimatePath(busPath||[]), o=estimatePath(otherPath||[]);
+  const b=estimatePath(busPath||[],initialTransitMode), o=estimatePath(otherPath||[],initialTransitMode);
   const qb=routeQuality(busPath||[]), qo=routeQuality(otherPath||[]);
   const timeGain=o.base-b.base;
   const transferGain=qo.transitTransfers-qb.transitTransfers;
@@ -4015,14 +4038,14 @@ function busWinsOnlyWithMeaningfulAdvantage(busPath,otherPath){
   // A small time advantage is not enough. A very large access improvement can be.
   return busReason;
 }
-function compareRouteQuality(a,b){
+function compareRouteQuality(a,b,initialTransitMode=null){
   const x=routeQuality(a), y=routeQuality(b);
   if(routeHasBus(a)!==routeHasBus(b)){
     const busPath=routeHasBus(a)?a:b;
     const otherPath=routeHasBus(a)?b:a;
-    if(!busWinsOnlyWithMeaningfulAdvantage(busPath,otherPath)) return routeHasBus(a)?1:-1;
+    if(!busWinsOnlyWithMeaningfulAdvantage(busPath,otherPath,initialTransitMode)) return routeHasBus(a)?1:-1;
   }
-  const sx=routeDecisionScore(a), sy=routeDecisionScore(b);
+  const sx=routeDecisionScore(a,initialTransitMode), sy=routeDecisionScore(b,initialTransitMode);
   return sx-sy
     || x.transitTransfers-y.transitTransfers
     || x.surfaceMinutes-y.surfaceMinutes
@@ -4038,6 +4061,7 @@ function validateRoute(path){
   return {ok:true,reason:null};
 }
 function generateRouteCandidates(a,b){
+  const initialTransitMode=stationSearchAccess[a]?.mode||null;
   const candidates=[];
   const add=(title,subtitle,path)=>{
     if(!Array.isArray(path)||!path.length) return;
@@ -4045,7 +4069,7 @@ function generateRouteCandidates(a,b){
     if(!v.ok) return;
     const key=JSON.stringify(path.map(s=>[s?.[0],s?.[1],s?.[2]]));
     if(candidates.some(c=>c.key===key)) return;
-    candidates.push({title,subtitle,path,key,score:routeDecisionScore(path)});
+    candidates.push({title,subtitle,path,key,initialTransitMode,score:routeDecisionScore(path,initialTransitMode)});
   };
   const rail=minimumRailRoute(a,b,4);
   if(rail) add('Rota',`${countModeTransfers(rail)} aktarma`,rail);
@@ -4055,13 +4079,13 @@ function generateRouteCandidates(a,b){
   if(nearby) add('Yerel erişim', 'Yakın bağlantı', nearby);
   // Gerçek IETT verisi bağlanmadan otobüs hattı UYDURMA. Bus adayları yalnızca
   // açıkça typed bus step olarak sağlandığında bu havuza eklenmelidir.
-  candidates.sort((x,y)=>compareRouteQuality(x.path,y.path));
+  candidates.sort((x,y)=>compareRouteQuality(x.path,y.path,initialTransitMode));
   return candidates;
 }
 function selectBestRoute(candidates){
   const valid=(candidates||[]).filter(c=>validateRoute(c.path).ok);
   if(!valid.length) return null;
-  valid.sort((a,b)=>compareRouteQuality(a.path,b.path));
+  valid.sort((a,b)=>compareRouteQuality(a.path,b.path,a.initialTransitMode));
   return valid[0];
 }
 function practicalRouteCost(path){
@@ -4183,7 +4207,7 @@ function multimodalFerryCandidate(a,b){
   candidates.sort((x,y)=>practicalRouteCost(x.path)-practicalRouteCost(y.path));
   const best=candidates[0]||null;
   // Deniz alternatifi ancak raylı sistem rotasından gerçekten daha pratikse seçilir.
-  if(best && compareRouteQuality(best.path,railBaseline)<0) return best;
+  if(best && compareRouteQuality(best.path,railBaseline,stationSearchAccess[a]?.mode||null)<0) return best;
   return null;
 }
 
@@ -4261,10 +4285,11 @@ function etaSegmentMinutes(from,to,mode){
   const perStop=full&&line?.order?.length>1 ? full/(line.order.length-1) : ETA_MODE_PER_STOP[mode]||2.2;
   return Math.max(1,stops*perStop);
 }
-function estimatePath(path){
+function estimatePath(path,initialTransitMode=undefined){
   if(!path||!path.length) return {low:0,high:0,transfers:0,base:0};
+  const initialMode=initialTransitMode===undefined ? (stationSearchAccess[start?.id]?.mode || null) : initialTransitMode;
   let ride=0,transfers=0,firstTransitType=null;
-  let previousTransit=stationSearchAccess[start?.id]?.mode || null;
+  let previousTransit=initialMode;
   for(let i=0;i<path.length;i++){
     const [from,to,mode]=path[i],type=etaModeType(mode);
     ride+=etaSegmentMinutes(from,to,mode,path[i]);
@@ -4279,7 +4304,7 @@ function estimatePath(path){
   }
   const firstWait=ETA_EXPECTED_WAIT[firstTransitType||'rail'];
   let transferWait=0;
-  let prevTransit=stationSearchAccess[start?.id]?.mode || null;
+  let prevTransit=initialMode;
   for(let i=0;i<path.length;i++){
     const mode=path[i][2],type=etaModeType(mode);
     if(type==='walk'||type==='local') continue;
@@ -4794,8 +4819,8 @@ function currentLocationAccessCandidates(target){
       }
     }catch(_){ path=null; }
     if(!path) continue;
-    const accessPenalty=walkMinutes*1.15;
-    const routeCost=routeDecisionScore(path);
+    const accessPenalty=walkMinutes*GPS_ACCESS_WALK_WEIGHT;
+    const routeCost=routeDecisionScore(path,st.mode);
     candidates.push({...st,distanceKm,walkMinutes,path,score:routeCost+accessPenalty});
   }
   candidates.sort((a,b)=>a.score-b.score || a.walkMinutes-b.walkMinutes);
@@ -5212,7 +5237,7 @@ function buildRouteToTargetCore(target,gpsStart,gpsStation){
    }
    return count;
  };
- const normalizedOptions=options ? options.map(opt=>({...opt,path:ensureFinalMileForAnyPath(opt.path,target.id)})).filter(opt=>validateRoute(opt.path).ok).sort((a,b)=>compareRouteQuality(a.path,b.path)) : null;
+ const normalizedOptions=options ? options.map(opt=>({...opt,path:ensureFinalMileForAnyPath(opt.path,target.id)})).filter(opt=>validateRoute(opt.path).ok).sort((a,b)=>compareRouteQuality(a.path,b.path,selectedStartMode)) : null;
  let normalizedPath=path ? ensureFinalMileForAnyPath(path,target.id) : path;
  if(normalizedPath && !hasVerifiedTransitTransfers(normalizedPath)){
    console.warn('[route-guard] Unverified transit transfer rejected', normalizedPath);
@@ -5243,13 +5268,14 @@ function buildRouteToTargetCore(target,gpsStart,gpsStation){
    else normalizedOptions.forEach(opt=>{opt.path=[['current_location',gpsStation.station,'Yürüyüş',`<b>Mevcut konumundan</b> <b>${gpsStation.label}</b> istasyonuna yürü.<br>${currentLocationWalkingNavigationHtmlForStation(gpsStation)}`],...opt.path];});
  }
  const optionBlocks=normalizedOptions ? normalizedOptions.map((opt,idx)=>{
-   const stops=opt.path.map(e=>stepNodeLabel(e[1],e[2])).join(' → ');
-   const tc=transferCount(opt.path);
+   const displayPath=compressConsecutiveTransitStepsForDisplay(opt.path);
+   const stops=displayPath.map(e=>stepNodeLabel(e[1],e[2])).join(' → ');
+   const tc=transferCount(displayPath);
    const subtitle=opt.subtitle && opt.subtitle.includes('direkt') ? (opt.path[0]?.[2]==='İlçe içi ulaşım' ? 'İstasyona erişim + direkt ulaşım' : opt.subtitle) : `${tc} aktarma`;
-   return `<div class="option-card"><div class="option-head"><div><h3>${opt.title}</h3><p>${subtitle}</p></div><span class="option-pill">${opt.path.length} ADIM</span></div><div class="option-route">${stops}</div><div class="timeline">${renderPath(opt.path,target.id)}</div></div>`;
+   return `<div class="option-card"><div class="option-head"><div><h3>${opt.title}</h3><p>${subtitle}</p></div><span class="option-pill">${displayPath.length} ADIM</span></div><div class="option-route">${stops}</div><div class="timeline">${renderPath(opt.path,target.id)}</div></div>`;
  }).join('') : `<div class="timeline">${renderPath(normalizedPath,target.id)}</div>`;
  const activePath=normalizedOptions ? normalizedOptions[0].path : normalizedPath;
- const est=estimatePath(activePath);
+ const est=estimatePath(activePath,selectedStartMode??null);
  const heading=normalizedOptions ? '' : `<p>Her adımda <b>nereden bineceğin, hangi yöne gideceğin ve nerede ineceğin</b> gösterilir.</p>`;
  const displayActivePath=compressConsecutiveTransitStepsForDisplay(activePath);
  const summary=`<div class="route-summary"><div class="route-stat"><b>${est.low}–${est.high} dk</b><span>Tahmini yolculuk</span></div><div class="route-stat"><b>${est.transfers}</b><span>aktarma</span></div><div class="route-stat"><b>${displayActivePath.length}</b><span>ulaşım adımı</span></div></div>`;
