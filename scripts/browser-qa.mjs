@@ -154,12 +154,14 @@ try {
     const real = [['ayrilik','ayrilik','M4 Metro',''],['ayrilik','ayrilik','Marmaray','']];
     return {
       gpsOk: gps.length >= 10 && gps.every(x => Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lng))) && gps.some(x => x.station === 'pendik' && x.mode === 'M4 Metro'),
+      olimpiyatM11EntranceOk: (() => { const row = gps.find(x => x.station === 'olimpiyat' && x.mode === 'M11 Metro'); return !!row && row.label === 'Olimpiyatköy M11' && Math.abs(row.lat - 41.078967) < 0.000001 && Math.abs(row.lng - 28.768925) < 0.000001; })(),
       exitsOk: exits.length > 0 && exits.every(x => x.no !== undefined && !!x.name),
       transferGuardOk: hasVerifiedTransitTransfers(fake) === false && hasVerifiedTransitTransfers(real) === true,
       falseWalkGuardOk: (touristWalkTime('uskudar','anadolu_hisari') == null) && (lastMileWalkMinutes.anadolu_hisari == null)
     };
   });
   record('GPS station coordinates have valid values', accessAudit.gpsOk);
+  record('M11 Olimpiyatköy fallback targets geotagged entrance', accessAudit.olimpiyatM11EntranceOk);
   record('station exit registry entries have names and IDs', accessAudit.exitsOk);
   record('unverified same-node transfer is blocked', accessAudit.transferGuardOk);
   record('unverified short walking link is not invented', accessAudit.falseWalkGuardOk);
