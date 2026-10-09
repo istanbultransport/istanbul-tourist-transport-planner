@@ -53,6 +53,29 @@ try {
   record('origin ID and coordinates preserved through UI selection', selected.start.id === 'kadikoy_carsi' && Number.isFinite(selected.start.lat) && Number.isFinite(selected.start.lng), JSON.stringify(selected.start));
   record('target ID and coordinates preserved through UI selection', selected.target.id === 'ciya_sofrasi' && Number.isFinite(selected.target.lat) && Number.isFinite(selected.target.lng), JSON.stringify(selected.target));
   record('route output shown after destination click', selected.routeVisible);
+
+  // Responsive acceptance matrix: run the real selected-route screen at common
+  // narrow phone, standard phone, tablet and desktop viewport widths.
+  for (const viewport of [
+    { width: 320, height: 720, label: 'small phone' },
+    { width: 360, height: 800, label: 'Android phone' },
+    { width: 390, height: 844, label: 'iPhone-sized phone' },
+    { width: 768, height: 1024, label: 'tablet' },
+    { width: 1024, height: 768, label: 'small laptop' },
+    { width: 1365, height: 900, label: 'desktop' }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const layout = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+      routeVisible: getComputedStyle(document.getElementById('route')).display !== 'none'
+    }));
+    record('responsive layout '+viewport.label+' ('+viewport.width+'px)',
+      layout.document <= layout.viewport + 1 && layout.body <= layout.viewport + 1 && layout.routeVisible,
+      JSON.stringify(layout));
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'browser-qa-mobile.png', fullPage: true });
   record('no uncaught browser console errors', consoleErrors.length === 0, consoleErrors.slice(0, 5).join(' | '));
 
@@ -102,13 +125,18 @@ try {
         from: start?.id || null,
         to: selectedTarget?.id || null,
         routeText: document.getElementById('route')?.innerText?.trim() || '',
-        routeHtml: document.getElementById('route')?.innerHTML || ''
+        routeHtml: document.getElementById('route')?.innerHTML || '',
+        stepCards: document.querySelectorAll('#route .step').length,
+        summaryLabels: [...document.querySelectorAll('#route .route-summary .route-stat span')].map(n => n.textContent.trim())
       }));
+      const hasJourneySummary = ['Tahmini yolculuk','aktarma','ulaşım adımı'].every(label => flow.summaryLabels.includes(label));
       const valid = flow.from === item.from && flow.to === item.to &&
-        flow.routeText.length > 0 && flow.routeHtml.length > 0;
+        flow.routeText.length > 0 && flow.routeHtml.length > 0 &&
+        flow.stepCards > 0 && hasJourneySummary;
       record('UI route flow '+item.id, valid, JSON.stringify({
         expectedFrom: item.from, actualFrom: flow.from,
         expectedTo: item.to, actualTo: flow.to,
+        stepCards: flow.stepCards, summaryLabels: flow.summaryLabels,
         routeText: flow.routeText.slice(0, 240)
       }));
     } catch (error) {
