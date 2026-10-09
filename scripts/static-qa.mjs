@@ -24,7 +24,11 @@ catch (error) { fail.push(`sw.js syntax: ${error.message}`); }
 try { JSON.parse(manifestText); pass.push('manifest.json valid JSON'); }
 catch (error) { fail.push(`manifest.json: ${error.message}`); }
 
-const ids = [...html.matchAll(/\bid=["']([^"'$]+)["']/g)].map(m => m[1]);
+// Static ID checks must ignore scripts: template literals contain placeholders
+// such as id="${p.id}" that are not literal IDs in the initial HTML DOM.
+const staticMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+                         .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+const ids = [...staticMarkup.matchAll(/\bid=["']([^"'$]+)["']/g)].map(m => m[1]);
 const duplicates = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
 check('no duplicate static HTML IDs', duplicates.length === 0, duplicates.join(', '));
 const idSet = new Set(ids);
