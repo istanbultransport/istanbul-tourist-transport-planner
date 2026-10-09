@@ -87,9 +87,39 @@ try {
     record(label+' opens from mobile UI', opened);
   }
 
-  // Service-worker/cache syntax and configuration can be checked here; offline fetch behavior is validated in a separate SW browser context.
+  // Verify service-worker install, core cache population and offline navigation.
   const sw = read('sw.js');
-  record('versioned PWA cache includes QA fixtures', /itp-v230\.12\.18-core/.test(sw) && sw.includes('./qa/location-regression-cases.json') && sw.includes('./qa.html'));
+  record('versioned PWA cache includes QA fixtures', /itp-v230\\.12\\.19-core/.test(sw) && sw.includes('./qa/location-regression-cases.json') && sw.includes('./qa.html'));
+  const offlineContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const offlinePage = await offlineContext.newPage();
+    await offlinePage.goto('http://127.0.0.1:4173/index.html?qa=offline', { waitUntil: 'domcontentloaded' });
+    await offlinePage.evaluate(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller && reg.active) {
+        await new Promise(resolve => {
+          navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
+          setTimeout(resolve, 4000);
+        });
+      }
+    });
+    await offlinePage.reload({ waitUntil: 'domcontentloaded' });
+    await offlinePage.waitForSelector('#list .place[data-id]', { timeout: 10000 });
+    const cacheState = await offlinePage.evaluate(async () => ({
+      controlled: !!navigator.serviceWorker.controller,
+      cache: (await caches.keys()).some(k => k === 'itp-v230.12.19-core'),
+      cachedIndex: !!(await caches.open('itp-v230.12.19-core')).match('./index.html')
+    }));
+    record('PWA service worker controls page and caches app shell', cacheState.controlled && cacheState.cache && cacheState.cachedIndex, JSON.stringify(cacheState));
+    await offlineContext.setOffline(true);
+    await offlinePage.reload({ waitUntil: 'domcontentloaded' });
+    await offlinePage.waitForSelector('#list .place[data-id]', { timeout: 10000 });
+    record('PWA app shell renders offline from cache', await offlinePage.locator('#list .place[data-id]').count() > 0);
+  } catch (error) {
+    record('PWA offline smoke test', false, error.message);
+  } finally {
+    await offlineContext.close();
+  }
 } finally {
   await browser.close();
 }
