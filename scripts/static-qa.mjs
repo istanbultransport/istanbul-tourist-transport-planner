@@ -12,6 +12,11 @@ const html = read('index.html');
 const sw = read('sw.js');
 const manifestText = read('manifest.json');
 const qa = read('qa.html');
+const regressionText = read('qa/location-regression-cases.json');
+let regression = null;
+try { regression = JSON.parse(regressionText); pass.push('manual regression dataset valid JSON'); }
+catch (error) { fail.push(`manual regression dataset JSON: ${error.message}`); }
+
 
 const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
 check('index.html contains inline scripts', scripts.length > 0);
@@ -75,6 +80,32 @@ const build = (html.match(/<meta name="build-id" content="([^"]+)"/) || [])[1] |
 const buildMinor = build.match(/V230\.12\.(\d+)/);
 const cacheMinor = sw.match(/CACHE_NAME='itp-v230\.12\.(\d+)-core'/);
 check('build ID and service-worker cache version match', !!buildMinor && !!cacheMinor && buildMinor[1] === cacheMinor[1], `build=${build}; cache=${(cacheMinor||[])[1]||'missing'}`);
+
+
+if (regression) {
+  check('manual regression contains exactly 50 places', Array.isArray(regression.locations) && regression.locations.length === 50, String(regression.locations?.length));
+  check('manual regression contains exactly 40 route cases', Array.isArray(regression.routeCases) && regression.routeCases.length === 40, String(regression.routeCases?.length));
+  const locationIds = new Set((regression.locations || []).map(place => place.id));
+  check('manual regression location IDs are unique', locationIds.size === regression.locations?.length);
+  check('all manual route endpoints reference known locations', (regression.routeCases || []).every(route => locationIds.has(route.from) && locationIds.has(route.to)));
+  check('no paid API is required for manual regression', regression.policy?.noPaidApi === true);
+  check('manual regression forbids invented ETAs', regression.policy?.noInventedEtas === true);
+  check('manual regression has release gate documentation', read('qa/20-location-manual-regression.md').includes('R01–R40'));
+  const catalogMatch = html.match(/const places=(\\[[\\s\\S]*?\\]);\\s*(?:const |function )/);
+  let catalog = null;
+  try { if (catalogMatch) catalog = JSON.parse(catalogMatch[1]); } catch {}
+  check('place catalogue can be parsed for regression cross-check', Array.isArray(catalog));
+  if (catalog) {
+    const catalogById = new Map(catalog.map(place => [place.id, place]));
+    const inCatalog = regression.locations.filter(place => place.source === 'existing-catalog');
+    check('all marked catalogue places exist by ID', inCatalog.every(place => catalogById.has(place.id)));
+    check('catalogue coordinates match regression fixture', inCatalog.every(place => {
+      const current = catalogById.get(place.id);
+      return current && current.lat === place.lat && current.lng === place.lng;
+    }));
+    check('business gap probes are explicitly marked', regression.locations.filter(place => place.source === 'business-directory-not-in-catalog').length === 4);
+  }
+}
 
 console.log(`Static QA: ${pass.length} passed, ${fail.length} failed`);
 for (const name of pass) console.log(`PASS  ${name}`);
