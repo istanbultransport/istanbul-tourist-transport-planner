@@ -301,26 +301,32 @@ async function run(){
       const endpointsKnown=knownPlace(item.from)&&knownPlace(item.to);
       const from=w.eval('places.find(p=>p.id==='+JSON.stringify(item.from)+')');
       const to=w.eval('places.find(p=>p.id==='+JSON.stringify(item.to)+')');
-      let path=null, source='place';
+      let path=null, routeSource='place graph';
       if(endpointsKnown){
-        if(w.eval('specialStartIds.has('+JSON.stringify(item.from)+')')){
-          path=w.eval('route('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
-          source='place/route';
-        } else {
-          path=w.eval('route('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
-          if(!path) path=w.eval('minimumRailRoute('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+',4,null,null)');
-          if(!path){
-            const candidates=w.eval('generateRouteCandidates('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
-            const best=w.eval('selectBestRoute('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
-            path=best?.path || candidates?.[0]?.path || null;
-            source='candidate';
-          }
+        path=w.eval('route('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+        if(!path) path=w.eval('minimumRailRoute('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+',4,null,null)');
+        if(!path){
+          const candidates=w.eval('generateRouteCandidates('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+          const best=w.eval('selectBestRoute(candidates)');
+          path=best?.path || candidates?.[0]?.path || null;
+          routeSource='candidate graph';
         }
       }
-      // Route engine is expected to find a path for connected cases, but no
-      // synthetic ETA or route is invented to force a passing result.
-      const ok=endpointsKnown&&Array.isArray(path)&&path.length>0&&w.eval('validateRoute('+JSON.stringify(path)+').ok')===true;
-      return {id:item.id,from:item.from,to:item.to,ok,source,steps:Array.isArray(path)?path.length:0,detail:ok?'validated engine path':!endpointsKnown?'endpoint missing from place catalogue':'route not found or validation failed'};
+      const validation=Array.isArray(path)&&path.length ? w.eval('validateRoute('+JSON.stringify(path)+')') : {ok:false,reason:'route not found'};
+      const modes=Array.isArray(path)?path.map(step=>step?.[2]):[];
+      const walkingSteps=Array.isArray(path)?path.filter(step=>['Yürüyüş','Son ulaşım'].includes(step?.[2])):[];
+      const transferModes=Array.isArray(path)?modes.filter((mode,i)=>i>0 && mode!==modes[i-1] && !['Yürüyüş','İlçe içi ulaşım','Son ulaşım'].includes(mode) && !['Yürüyüş','İlçe içi ulaşım','Son ulaşım'].includes(modes[i-1])):[];
+      const finalMile=Array.isArray(path)&&path.some(step=>step?.[2]==='Son ulaşım');
+      const knownIdentity=!!from&&!!to&&Number.isFinite(from.lat)&&Number.isFinite(from.lng)&&Number.isFinite(to.lat)&&Number.isFinite(to.lng);
+      const ok=endpointsKnown&&knownIdentity&&Array.isArray(path)&&path.length>0&&validation.ok===true;
+      return {
+        id:item.id,from:item.from,to:item.to,ok,routeSource,
+        steps:Array.isArray(path)?path.length:0, modes,
+        transferChanges:transferModes.length, walkingSteps:walkingSteps.length, finalMile,
+        origin:{id:from?.id,lat:from?.lat,lng:from?.lng},
+        destination:{id:to?.id,lat:to?.lat,lng:to?.lng},
+        detail:ok?'route engine produced a validated path':!endpointsKnown?'endpoint missing from production catalogue':!knownIdentity?'origin/destination ID or coordinates missing':(validation.reason||'route not found')
+      };
     }catch(e){return {id:item.id,from:item.from,to:item.to,ok:false,detail:String(e?.message||e)};}
   });
   window.__ITP_ROUTE_FIXTURE_RESULTS__ = routeFixtureResults;
