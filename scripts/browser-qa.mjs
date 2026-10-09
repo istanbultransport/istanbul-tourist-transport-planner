@@ -46,8 +46,8 @@ try {
   await page.locator('#list .place[data-id="kadikoy_carsi"]').click();
   await page.locator('#list .place[data-id="ciya_sofrasi"]').click();
   const selected = await page.evaluate(() => ({
-    start: { id: window.start?.id, lat: window.start?.lat, lng: window.start?.lng },
-    target: { id: window.selectedTarget?.id, lat: window.selectedTarget?.lat, lng: window.selectedTarget?.lng },
+    start: { id: typeof start!=='undefined'?start?.id:null, lat: typeof start!=='undefined'?start?.lat:null, lng: typeof start!=='undefined'?start?.lng:null },
+    target: { id: typeof selectedTarget!=='undefined'?selectedTarget?.id:null, lat: typeof selectedTarget!=='undefined'?selectedTarget?.lat:null, lng: typeof selectedTarget!=='undefined'?selectedTarget?.lng:null },
     routeVisible: getComputedStyle(document.getElementById('route')).display !== 'none'
   }));
   record('origin ID and coordinates preserved through UI selection', selected.start.id === 'kadikoy_carsi' && Number.isFinite(selected.start.lat) && Number.isFinite(selected.start.lng), JSON.stringify(selected.start));
@@ -59,16 +59,16 @@ try {
   // Route-engine fixture regression, run against the actual in-page data/graph.
   for (const item of cases.routeCases) {
     const result = await page.evaluate(({ from, to }) => {
-      const hasId = id => Array.isArray(window.places) && window.places.some(p => p.id === id);
+      const hasId = id => typeof places!=='undefined' && Array.isArray(places) && places.some(p => p.id === id);
       if (!hasId(from) || !hasId(to)) return { ok:false,reason:'endpoint missing' };
-      let path = window.route(from,to);
-      if (!path) path = window.minimumRailRoute(from,to,4,null,null);
+      let path = route(from,to);
+      if (!path) path = minimumRailRoute(from,to,4,null,null);
       if (!path) {
-        const candidates = window.generateRouteCandidates(from,to);
-        path = window.selectBestRoute(candidates)?.path || candidates?.[0]?.path || null;
+        const candidates = generateRouteCandidates(from,to);
+        path = selectBestRoute(candidates)?.path || candidates?.[0]?.path || null;
       }
       if (!Array.isArray(path) || !path.length) return { ok:false,reason:'route missing' };
-      const validation = window.validateRoute(path);
+      const validation = validateRoute(path);
       return { ok:validation.ok,reason:validation.reason,steps:path.length,modes:path.map(s=>s[2]),finalMile:path.some(s=>s[2]==='Son ulaşım'),walk:path.some(s=>s[2]==='Yürüyüş') };
     }, item);
     record('route fixture '+item.id, result.ok === true, result.reason || JSON.stringify(result));
@@ -89,7 +89,7 @@ try {
 
   // Service-worker/cache syntax and configuration can be checked here; offline fetch behavior is validated in a separate SW browser context.
   const sw = read('sw.js');
-  record('versioned PWA cache includes QA fixtures', /itp-v230\\.12\\.18-core/.test(sw) && sw.includes('./qa/location-regression-cases.json') && sw.includes('./qa.html'));
+  record('versioned PWA cache includes QA fixtures', /itp-v230\.12\.18-core/.test(sw) && sw.includes('./qa/location-regression-cases.json') && sw.includes('./qa.html'));
 } finally {
   await browser.close();
 }
