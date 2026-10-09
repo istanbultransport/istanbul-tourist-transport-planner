@@ -664,9 +664,9 @@
     },
     {
       "id": "R27",
-      "from": "faros_karakoy",
+      "from": "karakoy_lokantasi",
       "to": "istanbul_modern",
-      "focus": "Restoran işletme konumu ve son yürüyüş."
+      "focus": "Karaköy işletme kaydı ve son yürüyüş; koordinatı yaklaşık olan Faros kullanılmıyor."
     },
     {
       "id": "R28",
