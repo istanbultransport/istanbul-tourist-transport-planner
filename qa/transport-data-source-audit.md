@@ -264,3 +264,9 @@ Added browser and live-smoke regression checks for four pairs whose names are sh
 
 - First live-smoke run for batch 3 exposed a test-code placement error: the cross-line pair calculation had been inserted inside the Marmaray point-comparison callback, so it never populated the top-level diagnostic result. The app coordinates were not implicated; all preceding live coordinate, cache and M11 checks passed.
 - Moved the four-pair geometry comparison to the diagnostic's correct scope so live smoke can report all four distances and evaluate the tolerance assertions. Static QA and Browser QA passed; the corrected live smoke and deployment must be rerun before this batch is green.
+
+
+### Batch 3 live-smoke follow-up
+
+- Static QA caught a duplicate `m11EntranceTargets` declaration after the cross-line check was moved to the correct scope. The duplicate was introduced during test refactoring; it did not modify application code or coordinates.
+- Removed the second declaration and retained the original three-entry M11 entrance comparison. Static QA, browser QA, live smoke and Pages deployment are being rerun on the corrected commit.

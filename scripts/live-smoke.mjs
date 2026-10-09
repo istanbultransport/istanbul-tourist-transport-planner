@@ -137,20 +137,6 @@ try {
         const meters = Math.hypot(dx, dy);
         return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
       });
-      const m11EntranceTargets = [
-        ['kagithane_hub','M11 Metro',41.08035,28.9756],
-        ['olimpiyat','M11 Metro',41.078967,28.768925],
-        ['kayasehir_hub','M11 Metro',41.117733,28.765983]
-      ];
-      const m11EntranceChecks = m11EntranceTargets.map(([station, mode, lat, lng]) => {
-        const local = fallback.find(row => row.station === station && row.mode === mode);
-        if (!local) return { station, mode, meters: null, ok: false };
-        const meanLat = (local.lat + lat) / 2 * Math.PI / 180;
-        const dy = (local.lat - lat) * 111320;
-        const dx = (local.lng - lng) * 111320 * Math.cos(meanLat);
-        const meters = Math.hypot(dx, dy);
-        return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
-      });
       const crossLineStationPairs = [
         { station: 'ayrilik', a: 'M4 Metro', b: 'Marmaray', min: 0, max: 150 },
         { station: 'uskudar', a: 'M5 Metro', b: 'Marmaray', min: 0, max: 200 },
