@@ -173,6 +173,21 @@ try {
           return meters >= pair.min && meters <= pair.max;
         });
       })(),
+      marmarayNodeChecksOk: (() => {
+        const targets = [
+          { station: 'pendik', lat: 40.88024, lng: 29.23165, tolerance: 20 },
+          { station: 'erenkoy_m', lat: 40.97167, lng: 29.07638, tolerance: 10 },
+          { station: 'sogutlucesme', lat: 40.99065, lng: 29.03791, tolerance: 75 },
+          { station: 'ayrilik', lat: 41.00015, lng: 29.03010, tolerance: 60 }
+        ];
+        return targets.every(target => {
+          const row = gps.find(item => item.station === target.station && item.mode === 'Marmaray');
+          if (!row || !Number.isFinite(row.lat) || !Number.isFinite(row.lng)) return false;
+          const meanLat = (row.lat + target.lat) / 2 * Math.PI / 180;
+          const meters = Math.hypot((row.lat - target.lat) * 111320, (row.lng - target.lng) * 111320 * Math.cos(meanLat));
+          return meters <= target.tolerance;
+        });
+      })(),
       exitsOk: exits.length > 0 && exits.every(x => x.no !== undefined && !!x.name),
       transferGuardOk: hasVerifiedTransitTransfers(fake) === false && hasVerifiedTransitTransfers(real) === true,
       falseWalkGuardOk: (touristWalkTime('uskudar','anadolu_hisari') == null) && (lastMileWalkMinutes.anadolu_hisari == null)
@@ -183,6 +198,7 @@ try {
   record('M11 Kağıthane fallback targets geotagged Entrance 1', accessAudit.kagithaneM11EntranceOk);
   record('M11 Kayaşehir entrance is distinct from M3 Kayaşehir Merkez', accessAudit.kayasehirM11EntranceOk);
   record('four same-name cross-line station coordinate pairs preserve correct geometry', accessAudit.crossLineStationPairsOk);
+  record('four Marmaray station nodes remain within secondary-map tolerances', accessAudit.marmarayNodeChecksOk);
   record('station exit registry entries have names and IDs', accessAudit.exitsOk);
   record('unverified same-node transfer is blocked', accessAudit.transferGuardOk);
   record('unverified short walking link is not invented', accessAudit.falseWalkGuardOk);

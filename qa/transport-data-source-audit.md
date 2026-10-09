@@ -270,3 +270,14 @@ Added browser and live-smoke regression checks for four pairs whose names are sh
 
 - Static QA caught a duplicate `m11EntranceTargets` declaration after the cross-line check was moved to the correct scope. The duplicate was introduced during test refactoring; it did not modify application code or coordinates.
 - Removed the second declaration and retained the original three-entry M11 entrance comparison. Static QA, browser QA, live smoke and Pages deployment are being rerun on the corrected commit.
+
+
+## Four-record batch 4 — Marmaray station-node comparison — 2026-10-09
+
+Added browser and live-smoke comparisons for four additional Marmaray points against secondary OSM/Mapcarta station nodes. These are **station-node proximity checks**, not claims that the exact public entrance is proven:
+
+- **Pendik:** app `40.88016, 29.23162`; source `40.88024, 29.23165`; tolerance 20 m.
+- **Erenköy:** app `40.97167, 29.07638`; source same point; tolerance 10 m.
+- **Söğütlüçeşme:** app `40.99020, 29.03810`; source `40.99065, 29.03791`; tolerance 75 m.
+- **Ayrılık Çeşmesi:** app `40.99990, 29.02985`; Marmaray station node `41.00015, 29.03010`; tolerance 60 m. This proximity does not resolve the line-specific public-entrance question; the row remains under review.
+- No app coordinates changed. The new regression checks prevent these known station nodes from drifting while keeping entrance uncertainty explicitly documented.

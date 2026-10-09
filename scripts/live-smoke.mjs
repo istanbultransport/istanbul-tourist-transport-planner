@@ -151,6 +151,19 @@ try {
         const meters = Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * Math.cos(meanLat));
         return { station: pair.station, a: pair.a, b: pair.b, meters: Math.round(meters), ok: meters >= pair.min && meters <= pair.max };
       });
+      const marmarayNodeTargets = [
+        ['pendik','Marmaray',40.88024,29.23165,20],
+        ['erenkoy_m','Marmaray',40.97167,29.07638,10],
+        ['sogutlucesme','Marmaray',40.99065,29.03791,75],
+        ['ayrilik','Marmaray',41.00015,29.03010,60]
+      ];
+      const marmarayNodeChecks = marmarayNodeTargets.map(([station, mode, lat, lng, tolerance]) => {
+        const local = fallback.find(row => row.station === station && row.mode === mode);
+        if (!local) return { station, mode, meters: null, tolerance, ok: false };
+        const meanLat = (local.lat + lat) / 2 * Math.PI / 180;
+        const meters = Math.hypot((local.lat - lat) * 111320, (local.lng - lng) * 111320 * Math.cos(meanLat));
+        return { station, mode, meters: Math.round(meters), tolerance, ok: meters <= tolerance };
+      });
       return {
         ok: rows.length > 0,
         count: rows.length,
@@ -168,12 +181,14 @@ try {
         m11EntranceChecks,
         crossLineStationChecks,
         crossLineStationPairsOk: crossLineStationChecks.length === crossLineStationPairs.length && crossLineStationChecks.every(row => row.ok),
+        marmarayNodeChecks,
+        marmarayNodeChecksOk: marmarayNodeChecks.length === marmarayNodeTargets.length && marmarayNodeChecks.every(row => row.ok),
         allOfficialFallbacksMatch: apiCovered.length >= 29 && apiOutliers.length === 0,
         marmarayEntrancesMatchSource: marmarayEntranceChecks.length === marmarayEntranceTargets.length && marmarayEntranceChecks.every(row => row.ok),
         m11EntrancesMatchSource: m11EntranceChecks.length === m11EntranceTargets.length && m11EntranceChecks.every(row => row.ok)
       };
     } catch (error) {
-      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, allFallbackComparisons: [], apiCoveredCount: 0, apiOutliers: [], apiUnmatchedKeys: [], marmarayEntranceChecks: [], m11EntranceChecks: [], crossLineStationChecks: [], crossLineStationPairsOk: false, allOfficialFallbacksMatch: false, marmarayEntrancesMatchSource: false, m11EntrancesMatchSource: false, error: String(error) };
+      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, allFallbackComparisons: [], apiCoveredCount: 0, apiOutliers: [], apiUnmatchedKeys: [], marmarayEntranceChecks: [], m11EntranceChecks: [], crossLineStationChecks: [], crossLineStationPairsOk: false, marmarayNodeChecks: [], marmarayNodeChecksOk: false, allOfficialFallbacksMatch: false, marmarayEntrancesMatchSource: false, m11EntrancesMatchSource: false, error: String(error) };
     }
   });
   console.log('Official IBB station registry diagnostic: ' + JSON.stringify(gpsRegistryAudit));
@@ -192,6 +207,9 @@ try {
   record('four same-name cross-line station pairs preserve correct geometry',
     gpsRegistryAudit.crossLineStationPairsOk,
     JSON.stringify(gpsRegistryAudit.crossLineStationChecks));
+  record('four Marmaray station nodes remain within secondary-map tolerances',
+    gpsRegistryAudit.marmarayNodeChecksOk,
+    JSON.stringify(gpsRegistryAudit.marmarayNodeChecks));
   record('three M11 static fallbacks match geotagged station entrances',
     gpsRegistryAudit.m11EntrancesMatchSource,
     JSON.stringify(gpsRegistryAudit.m11EntranceChecks));
