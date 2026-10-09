@@ -6005,8 +6005,10 @@ function v227WalkingNavigationQA(){
           document.querySelectorAll('.filter').forEach(function(b){b.classList.remove('active');});
           btn.classList.add('active');
           if(typeof filter!=='undefined') filter=btn.dataset.filter||'Tümü';
-          try { if(typeof render==='function') render(); } catch(err){console.error('[ITP UI] render failed after filter:',err);}
-          safeCards();
+          var renderOK=false;
+          try { if(typeof render==='function'){render();renderOK=!!document.querySelector('#list .place[data-id]');} }
+          catch(err){console.error('[ITP UI] render failed after filter:',err);}
+          if(!renderOK) safeCards();
         }catch(err){console.error('[ITP UI recovery] filter failed:',err);safeCards();}
       };
     });
