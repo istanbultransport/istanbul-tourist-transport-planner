@@ -92,3 +92,11 @@ Keep the product in **pre-release verification** until the coordinate, transfer,
 - Source-quality rule: DailyMetro/Mapcarta/Wikidata/Wikimedia are comparison evidence, not official operator coordinate feeds. The official Metro İstanbul M4 page confirms line/station identity and sequence, not exact latitude/longitude. Therefore, all non-operator matches remain provisional pending an official map/field check where required.
 - No application code or live coordinates were changed in this continuation. The CSV is the audit record, and the release gate remains blocked pending resolution of variance flags, the 27 pending rows, transfer/walking validations, and real-device acceptance.
 
+## Marmaray coordinate cross-check continuation — 2026-10-09
+
+- Added source-backed comparisons for **9 more Marmaray records** using Mapcarta pages based on OpenStreetMap station nodes. CSV commit: `e6a58115c38407a9f66c89bdc188079886e2ba14`.
+- High-priority discrepancies: **Yunus** differs from the cited railway-station node by over 1 km; **Kaynarca** by roughly 2 km; **Kartal Marmaray** by roughly 1.5 km, with the current Kartal point appearing near the Yunus area; **Suadiye** and **Feneryolu** also differ by several hundred metres. These are flagged for confirmation rather than automatically overwriting app coordinates.
+- Erenköy matches the cited OSM/Mapcarta coordinate exactly; Söğütlüçeşme is a close match. Bostancı and Göztepe remain variance-review items.
+- Current inventory remains 49 records. After this batch, status totals are: `CROSS_CHECKED_NONOFFICIAL_SOURCE_CLOSE_MATCH`: 8; `CROSS_CHECKED_NONOFFICIAL_SOURCE_VARIANCE_REVIEW`: 7; `COORDINATE_VARIANCE_REVIEW_REQUIRED`: 10; `PENDING_INDEPENDENT_COORDINATE_CHECK`: 18; `CROSS_CHECKED_NONOFFICIAL_SOURCE_MATCH`: 5; `CROSS_CHECKED_COORDINATE_MISMATCH_CONFIRMED`: 1.
+- The sources are map/catalogue records, not an official TCDD/Marmaray coordinate feed. For large discrepancies, verify station identity and exact target point (station node, platform, entrance or transfer node) against an operator map before changing app code. No app code was changed in this batch.
+
