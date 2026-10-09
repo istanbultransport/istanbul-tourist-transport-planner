@@ -281,3 +281,14 @@ Added browser and live-smoke comparisons for four additional Marmaray points aga
 - **Söğütlüçeşme:** app `40.99020, 29.03810`; source `40.99065, 29.03791`; tolerance 75 m.
 - **Ayrılık Çeşmesi:** app `40.99990, 29.02985`; Marmaray station node `41.00015, 29.03010`; tolerance 60 m. This proximity does not resolve the line-specific public-entrance question; the row remains under review.
 - No app coordinates changed. The new regression checks prevent these known station nodes from drifting while keeping entrance uncertainty explicitly documented.
+
+
+## Four-record batch 5 — M11 line-specific station geometry — 2026-10-09
+
+Added four more coordinate-separation regressions for line-specific points. These check straight-line geometry only, not walking-route lengths:
+
+- **Kağıthane M7 ↔ M11 Entrance 1:** 284 m; expected 200–400 m.
+- **Kayaşehir Merkez M3 ↔ Kayaşehir M11:** 265 m; expected 150–350 m.
+- **Olimpiyat M9 ↔ Olimpiyatköy M11:** 98 m; expected ≤150 m for the interchange area, while retaining separate line-specific points.
+- **Halkalı Stadı M11 ↔ Olimpiyatköy M11:** 2,566 m; expected >500 m because these are distinct stations.
+- No app coordinates changed. Browser QA and live smoke now guard against accidental line-point reuse/collapse across these four relationships.

@@ -188,6 +188,22 @@ try {
           return meters <= target.tolerance;
         });
       })(),
+      m11LinePairGeometryOk: (() => {
+        const pairs = [
+          { a: ['kagithane_hub','M7 Metro'], b: ['kagithane_hub','M11 Metro'], min: 200, max: 400 },
+          { a: ['kayasehir_hub','M3 Metro'], b: ['kayasehir_hub','M11 Metro'], min: 150, max: 350 },
+          { a: ['olimpiyat','M9 Metro'], b: ['olimpiyat','M11 Metro'], min: 0, max: 150 },
+          { a: ['halkali_stadi_m11','M11 Metro'], b: ['olimpiyat','M11 Metro'], min: 500, max: Infinity }
+        ];
+        return pairs.every(pair => {
+          const a = gps.find(row => row.station === pair.a[0] && row.mode === pair.a[1]);
+          const b = gps.find(row => row.station === pair.b[0] && row.mode === pair.b[1]);
+          if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat)) return false;
+          const meanLat = (a.lat + b.lat) / 2 * Math.PI / 180;
+          const meters = Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * Math.cos(meanLat));
+          return meters >= pair.min && meters <= pair.max;
+        });
+      })(),
       exitsOk: exits.length > 0 && exits.every(x => x.no !== undefined && !!x.name),
       transferGuardOk: hasVerifiedTransitTransfers(fake) === false && hasVerifiedTransitTransfers(real) === true,
       falseWalkGuardOk: (touristWalkTime('uskudar','anadolu_hisari') == null) && (lastMileWalkMinutes.anadolu_hisari == null)
@@ -199,6 +215,7 @@ try {
   record('M11 Kayaşehir entrance is distinct from M3 Kayaşehir Merkez', accessAudit.kayasehirM11EntranceOk);
   record('four same-name cross-line station coordinate pairs preserve correct geometry', accessAudit.crossLineStationPairsOk);
   record('four Marmaray station nodes remain within secondary-map tolerances', accessAudit.marmarayNodeChecksOk);
+  record('four M11/M3/M7/M9 line-specific points preserve expected geometry', accessAudit.m11LinePairGeometryOk);
   record('station exit registry entries have names and IDs', accessAudit.exitsOk);
   record('unverified same-node transfer is blocked', accessAudit.transferGuardOk);
   record('unverified short walking link is not invented', accessAudit.falseWalkGuardOk);
