@@ -73,6 +73,50 @@ try {
     }, item);
     record('route fixture '+item.id, result.ok === true, result.reason || JSON.stringify(result));
   }
+  // Full end-to-end user flow for every fixture: reset -> search/select origin ->
+  // search/select destination -> wait for the rendered route -> assert canonical IDs.
+  // This intentionally drives the actual mobile UI rather than invoking the router directly.
+  for (const item of cases.routeCases) {
+    try {
+      const names = await page.evaluate(({ from, to }) => ({
+        from: places.find(p => p.id === from)?.name || null,
+        to: places.find(p => p.id === to)?.name || null
+      }), item);
+      if (!names.from || !names.to) {
+        record('UI route flow '+item.id, false, 'catalogue name missing: '+JSON.stringify(names));
+        continue;
+      }
+      await page.evaluate(() => newRoute());
+      await page.locator('#startPlaceSearch').fill(names.from);
+      await page.locator('#list .place[data-id="'+item.from+'"]').click({ timeout: 7000 });
+      await page.locator('#targetPlaceSearch').fill(names.to);
+      await page.locator('#list .place[data-id="'+item.to+'"]').click({ timeout: 7000 });
+      await page.waitForFunction(({ to }) =>
+        typeof selectedTarget !== 'undefined' &&
+        selectedTarget?.id === to &&
+        getComputedStyle(document.getElementById('route')).display !== 'none',
+        { to: item.to },
+        { timeout: 20000 }
+      );
+      const flow = await page.evaluate(() => ({
+        from: start?.id || null,
+        to: selectedTarget?.id || null,
+        routeText: document.getElementById('route')?.innerText?.trim() || '',
+        routeHtml: document.getElementById('route')?.innerHTML || ''
+      }));
+      const valid = flow.from === item.from && flow.to === item.to &&
+        flow.routeText.length > 0 && flow.routeHtml.length > 0;
+      record('UI route flow '+item.id, valid, JSON.stringify({
+        expectedFrom: item.from, actualFrom: flow.from,
+        expectedTo: item.to, actualTo: flow.to,
+        routeText: flow.routeText.slice(0, 240)
+      }));
+    } catch (error) {
+      record('UI route flow '+item.id, false, error.message);
+    }
+  }
+  record('40 end-to-end UI route flows loaded', cases.routeCases.length === 40, 'count='+cases.routeCases.length);
+
   record('40 route fixtures loaded', cases.routeCases.length === 40, 'count='+cases.routeCases.length);
 
   const accessAudit = await page.evaluate(() => {
