@@ -84,7 +84,7 @@ try {
       gpsOk: gps.length >= 10 && gps.every(x => Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lng))) && gps.some(x => x.station === 'pendik' && x.mode === 'M4 Metro'),
       exitsOk: exits.length > 0 && exits.every(x => x.no !== undefined && !!x.name),
       transferGuardOk: hasVerifiedTransitTransfers(fake) === false && hasVerifiedTransitTransfers(real) === true,
-      falseWalkGuardOk: !Number.isFinite(Number(touristWalkTime('uskudar','anadolu_hisari'))) && !Number.isFinite(Number(lastMileWalkMinutes.anadolu_hisari))
+      falseWalkGuardOk: (touristWalkTime('uskudar','anadolu_hisari') == null) && (lastMileWalkMinutes.anadolu_hisari == null)
     };
   });
   record('GPS station coordinates have valid values', accessAudit.gpsOk);
