@@ -342,7 +342,7 @@ function islandFerryRoute(a,b){
     for(const hub of hubs){
       if(hub===b) return [[a,b,'Vapur',`<b>${places.find(p=>p.id===a)?.name||a}</b> iskelesinden <b>${places.find(p=>p.id===b)?.name||b}</b> yönüne doğrudan vapur/motor kullan.`]];
       const rest=minimumRailRoute(hub,b,4);
-      if(rest) candidates.push([[a,hub,'Vapur',`<b>${places.find(p=>p.id===a)?.name||a}</b> iskelesinden <b>${ferryHubLabel(hub)}</b> yönüne doğrudan vapur/motor kullan.`],...rest]);
+      if(rest){ const candidate=[[a,hub,'Vapur',`<b>${places.find(p=>p.id===a)?.name||a}</b> iskelesinden <b>${ferryHubLabel(hub)}</b> yönüne doğrudan vapur/motor kullan.`],...rest]; if(validateRoute(candidate).ok) candidates.push(candidate); }
     }
     candidates.sort((x,y)=>compareRouteQuality(x,y));
     return candidates[0]||null;
