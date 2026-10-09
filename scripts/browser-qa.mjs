@@ -183,6 +183,7 @@ try {
       if (!m4 || !marmaray) return { error: 'Pendik M4/Marmaray candidates missing' };
 
       start = { id: 'current_location', name: 'Mevcut konumum', isCurrentLocation: true };
+      currentLocation = { lat: 40.888385865460556, lng: 29.23816910887322, accuracy: 20 };
       stationSearchAccess.current_location = { station: 'pendik', mode: 'M4 Metro', label: 'Pendik M4', direct: true };
       startRailAccess.current_location = stationSearchAccess.current_location;
       exactWalkingEstimate = async (_origin, coord) => {
@@ -201,12 +202,16 @@ try {
       );
       const m4Path = minimumRailRoute('pendik', 'agva', 4, null, 'M4 Metro');
       const marmarayPath = minimumRailRoute('pendik', 'agva', 4, null, 'Marmaray');
+      const prefix = adaptiveStartAccessSteps('current_location', chosen || {});
+      const estimate = estimatePath([...(prefix || []), ...(chosen?.path || [])], chosen?.mode ?? null);
       return {
         chosenStation: chosen?.station || null,
         chosenMode: chosen?.mode || null,
         chosenPathModes: chosen?.path?.map(s => s[2]) || [],
         m4PathModes: m4Path?.map(s => s[2]) || [],
         marmarayPathModes: marmarayPath?.map(s => s[2]) || [],
+        estimateTransfers: estimate.transfers,
+        estimateBase: estimate.base,
         candidateModesPresent: { m4: !!m4Path, marmaray: !!marmarayPath }
       };
     } finally {
@@ -222,9 +227,35 @@ try {
   });
   record(
     'GPS Pendik → Ağva evaluates optimal first boarding, not only nearest station',
-    gpsBoardingAudit?.chosenMode === 'Marmaray',
+    gpsBoardingAudit?.chosenMode === 'Marmaray' && gpsBoardingAudit?.estimateTransfers === 0,
     JSON.stringify(gpsBoardingAudit)
   );
+
+  const ferryDisplayAudit = await page.evaluate(() => {
+    const routeEl = document.getElementById('route');
+    const saved = { start, selectedTarget, html: routeEl.innerHTML, display: routeEl.style.display };
+    try {
+      start = places.find(p => p.id === 'wyndham_grand_kalamis');
+      const target = places.find(p => p.id === 'anadolu_hisari');
+      selectedTarget = target;
+      buildRouteToTargetCore(target, false, null);
+      const html = routeEl.innerHTML;
+      const routes = [...html.matchAll(/<div class="option-route">([\s\S]*?)<\/div>/g)].map(m => m[1]);
+      const flow = (html.match(/<div class="route-flow-list">([\s\S]*?)<\/div>/) || [])[1] || '';
+      return { firstCard: routes[0] || '', secondCard: routes[1] || '', flow };
+    } finally {
+      start = saved.start;
+      selectedTarget = saved.selectedTarget;
+      routeEl.innerHTML = saved.html;
+      routeEl.style.display = saved.display;
+    }
+  });
+  record('Kalamış → Anadolu Hisarı summary labels ferry pier, not Marmaray',
+    ferryDisplayAudit.firstCard.includes('Üsküdar İskelesi') && !ferryDisplayAudit.firstCard.includes('Üsküdar Marmaray') && ferryDisplayAudit.flow.includes('Üsküdar İskelesi'),
+    JSON.stringify(ferryDisplayAudit));
+  record('route option summary compresses same-line intermediate stops',
+    ferryDisplayAudit.secondCard.includes('Ayrılık Çeşmesi') && !/Acıbadem|Ünalan|Göztepe/.test(ferryDisplayAudit.secondCard),
+    JSON.stringify(ferryDisplayAudit.secondCard));
 
   record('40 route fixtures loaded', cases.routeCases.length === 40, 'count='+cases.routeCases.length);
 
