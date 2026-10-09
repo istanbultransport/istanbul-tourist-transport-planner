@@ -338,15 +338,6 @@
       "lng": 28.933
     },
     {
-      "id": "rahmi_m_koc_muzesi",
-      "name": "Rahmi M. Koç Müzesi",
-      "type": "attraction",
-      "side": "Avrupa Yakası",
-      "source": "existing-catalog",
-      "lat": 41.042,
-      "lng": 28.949
-    },
-    {
       "id": "istanbul_modern",
       "name": "İstanbul Modern",
       "type": "museum",
@@ -354,15 +345,6 @@
       "source": "existing-catalog",
       "lat": 41.0255,
       "lng": 28.982
-    },
-    {
-      "id": "istanbul_oyuncak_muzesi",
-      "name": "İstanbul Oyuncak Müzesi",
-      "type": "museum",
-      "side": "Anadolu Yakası",
-      "source": "existing-catalog",
-      "lat": 40.982,
-      "lng": 29.072
     },
     {
       "id": "istanbul_marriott_hotel_asia",
@@ -390,15 +372,6 @@
       "source": "existing-catalog",
       "lat": 41.064043,
       "lng": 29.009909
-    },
-    {
-      "id": "dedeman_bostanci",
-      "name": "Dedeman Bostancı",
-      "type": "hotel",
-      "side": "Anadolu Yakası",
-      "source": "existing-catalog",
-      "lat": 40.962297,
-      "lng": 29.110985
     },
     {
       "id": "cvk_park_bosphorus",
@@ -488,6 +461,15 @@
       "source": "business-directory-not-in-catalog",
       "address": "Kemankeş Karamustafa Paşa, Fransız Geçidi Sokağı İş Merkezi No:53 D:8, 34425 Beyoğlu/İstanbul, Türkiye",
       "needsCoordinateVerification": true
+    },
+    {
+      "id": "besiktas",
+      "name": "Beşiktaş",
+      "type": "district",
+      "side": "Avrupa Yakası",
+      "source": "existing-catalog",
+      "lat": 41.04285,
+      "lng": 29.00753
     }
   ],
   "routeCases": [
@@ -654,12 +636,6 @@
       "focus": "Ada → Avrupa yakası iskele rotası."
     },
     {
-      "id": "R31",
-      "from": "istanbul_oyuncak_muzesi",
-      "to": "moda_sahili",
-      "focus": "Anadolu yakası içi rota."
-    },
-    {
       "id": "R32",
       "from": "miniaturk",
       "to": "pierre_loti",
@@ -690,12 +666,6 @@
       "focus": "Anadolu yakası yaya/rail karşılaştırması."
     },
     {
-      "id": "R37",
-      "from": "dedeman_bostanci",
-      "to": "sabiha",
-      "focus": "Otel başlangıcı ve SAW rotası."
-    },
-    {
       "id": "R39",
       "from": "topkapi",
       "to": "yerebatan",
@@ -706,6 +676,30 @@
       "from": "istanbul_marriott_hotel_asia",
       "to": "galata",
       "focus": "Otel başlangıcı, iki yaka ve aktarmalar."
+    },
+    {
+      "id": "R11",
+      "from": "besiktas",
+      "to": "kadikoy_carsi",
+      "focus": "Deniz ulaşımı alternatifi."
+    },
+    {
+      "id": "R17",
+      "from": "dolmabahce",
+      "to": "besiktas",
+      "focus": "Kısa yürüyüş alternatifini kontrol et."
+    },
+    {
+      "id": "R21",
+      "from": "istanbul_marriott_hotel_asia",
+      "to": "kadikoy_carsi",
+      "focus": "Anadolu yakası otelinden şehir merkezine."
+    },
+    {
+      "id": "R38",
+      "from": "istanbul_akvaryum",
+      "to": "istanbul-airport",
+      "focus": "Uzak mesafe ve aktarma kontrolü."
     }
   ],
   "perCaseChecks": [
