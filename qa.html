@@ -47,6 +47,42 @@ async function run(){
 
   test('Service Worker kaydı için kod mevcut',()=>typeof w.navigator.serviceWorker!=='undefined');
 
+  test('Uygulama içi JavaScript sözdizimi hatasız',()=>{
+    const scripts=[...w.document.querySelectorAll('script:not([src])')];
+    return scripts.length>0 && scripts.every(s=>{try{new Function(s.textContent);return true;}catch(_){return false;}});
+  });
+
+  test('Başlangıç konum kartları ilk açılışta çiziliyor',()=>{
+    return w.document.querySelectorAll('#list .place[data-id]').length>0;
+  });
+
+  test('Semt/turistik yer arama alanı görünür DOM içinde mevcut',()=>{
+    return !!w.document.querySelector('#startPlaceSearch, #uiRecoveryPlaceSearch');
+  });
+
+  test('Avrupa/Anadolu filtreleri etkileşim alıyor',()=>{
+    const btn=w.document.querySelector('.filter[data-filter="Anadolu Yakası"]');
+    if(!btn) return false;
+    btn.click();
+    return btn.classList.contains('active') && w.document.querySelectorAll('#list .place[data-id]').length>0;
+  });
+
+  test('Şehri Keşfet paneli açılıp kapanıyor',()=>{
+    const btn=w.document.getElementById('cityExploreTab'), panel=w.document.getElementById('cityExplorePanel');
+    if(!btn||!panel) return false;
+    btn.click(); const opened=panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='false';
+    btn.click(); const closed=!panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='true';
+    return opened&&closed;
+  });
+
+  test('Bilet yardım paneli açılıp kapanıyor',()=>{
+    const btn=w.document.getElementById('ticketHelpTab'), panel=w.document.getElementById('ticketHelpPanel');
+    if(!btn||!panel) return false;
+    btn.click(); const opened=panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='false';
+    btn.click(); const closed=!panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='true';
+    return opened&&closed;
+  });
+
   test('Kalıcı local/session storage kullanılmıyor',()=>{
     const src=w.document.documentElement.outerHTML;
     return !/localStorage|sessionStorage/.test(src);
