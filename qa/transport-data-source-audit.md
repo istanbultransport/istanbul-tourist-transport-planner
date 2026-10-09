@@ -100,3 +100,21 @@ Keep the product in **pre-release verification** until the coordinate, transfer,
 - Current inventory remains 49 records. After this batch, status totals are: `CROSS_CHECKED_NONOFFICIAL_SOURCE_CLOSE_MATCH`: 8; `CROSS_CHECKED_NONOFFICIAL_SOURCE_VARIANCE_REVIEW`: 7; `COORDINATE_VARIANCE_REVIEW_REQUIRED`: 10; `PENDING_INDEPENDENT_COORDINATE_CHECK`: 18; `CROSS_CHECKED_NONOFFICIAL_SOURCE_MATCH`: 5; `CROSS_CHECKED_COORDINATE_MISMATCH_CONFIRMED`: 1.
 - The sources are map/catalogue records, not an official TCDD/Marmaray coordinate feed. For large discrepancies, verify station identity and exact target point (station node, platform, entrance or transfer node) against an operator map before changing app code. No app code was changed in this batch.
 
+## Remaining station-coordinate first-pass review — 2026-10-09
+
+- Completed a first-pass source review for the final 18 rows that were still marked pending. CSV commit: `10486de36d558dfc0e0ff36aa7d7446b7f711414`.
+- The current 49-row inventory now has only **1 row still without an independent coordinate comparison**; however, **30 rows still need variance resolution or stronger independent/operator confirmation**, so this does not mean the coordinate dataset is verified or release-ready.
+- High-risk Marmaray mismatches are now documented with Mapcarta/OpenStreetMap evidence:
+  - Kaynarca app point `40.86510, 29.23250` vs station node `40.87137, 29.25596` (about 2.1 km).
+  - Kartal Marmaray app point `40.88560, 29.20840` vs Kartal station node `40.88869, 29.19108` (about 1.5 km). The app point is near the Yunus-area station node; likely station-to-coordinate assignment problem.
+  - Yunus app point `40.87620, 29.22150` vs Yunus node `40.88456, 29.21041` (about 1.3 km). The existing coordinate candidates for Yunus and Kartal Marmaray need to be remapped carefully to their actual station identities, not just swapped blindly.
+  - Suadiye and Feneryolu also show several-hundred-metre differences and remain flagged.
+- Other notable discrepancies:
+  - M5 Ümraniye, Dudullu and Çekmeköy show roughly kilometre-scale differences against the cited OSM/Mapcarta station nodes.
+  - M2 Şişli–Mecidiyeköy and Levent show several-hundred-metre differences; Taksim, Vezneciler, Gayrettepe and 4. Levent need point-definition review.
+  - M11 Kağıthane's Mapcarta/OSM station node is approximately 290 m east of the M7 Kağıthane station node. The two line-specific rows should not share one exact coordinate when the data model intends separate platform/station points.
+  - M3 Kayaşehir Merkez and M11 Kayaşehir are distinct stations; preserve separate coordinates. The M3 station is mapped around `41.11908, 28.76634`; the M11 station is nearby but not identical.
+- Official Metro İstanbul route pages confirm station names, line identity and interchange relationships, but do not publish precise latitude/longitude in the reviewed pages. Mapcarta/OSM and other catalogues are comparison evidence, not an operator coordinate feed.
+- **No live application coordinates were changed.** The CSV records candidate source points and discrepancy notes only. Do not auto-replace the app's coordinate from a map node until the exact intended point (platform, station centroid, entrance or transfer node) and station identity are verified.
+- The last run for commit `a3a79e3` passed both Static and Browser QA and GitHub Pages deployment. The newer commit `10486de` has its own QA and Pages runs queued at the time this report was written; their outcomes must be checked before claiming that commit's workflows passed.
+
