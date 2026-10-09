@@ -85,22 +85,44 @@ try {
     try {
       const rows = await fetchGpsStationCoordinates();
       const ids = new Set(['umraniye','dudullu','cekmekoy','mecidiyekoy','levent','kagithane_hub','kayasehir_hub']);
+      const requiredKeys = [
+        ['umraniye','M5 Metro'], ['dudullu','M5 Metro'], ['cekmekoy','M5 Metro'],
+        ['mecidiyekoy','M2 Metro'], ['levent','M2 Metro'],
+        ['kagithane_hub','M7 Metro'], ['kayasehir_hub','M3 Metro']
+      ];
+      const fallback = staticGpsStationCoordinates();
+      const liveByKey = new Map(rows.map(row => [row.station + '|' + row.mode, row]));
+      const fallbackComparisons = requiredKeys.map(([station, mode]) => {
+        const local = fallback.find(row => row.station === station && row.mode === mode);
+        const live = liveByKey.get(station + '|' + mode);
+        if (!local || !live) return { station, mode, meters: null, ok: false };
+        const meanLat = (local.lat + live.lat) / 2 * Math.PI / 180;
+        const dy = (local.lat - live.lat) * 111320;
+        const dx = (local.lng - live.lng) * 111320 * Math.cos(meanLat);
+        const meters = Math.hypot(dx, dy);
+        return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 10 };
+      });
       return {
         ok: rows.length > 0,
         count: rows.length,
         relevant: rows.filter(row => ids.has(row.station)).map(row => ({
           station: row.station, mode: row.mode, label: row.label, lat: row.lat, lng: row.lng
         })),
-        finite: rows.every(row => Number.isFinite(row.lat) && Number.isFinite(row.lng))
+        finite: rows.every(row => Number.isFinite(row.lat) && Number.isFinite(row.lng)),
+        fallbackComparisons,
+        fallbackMatchesOfficial: fallbackComparisons.length === requiredKeys.length && fallbackComparisons.every(row => row.ok)
       };
     } catch (error) {
-      return { ok: false, count: 0, relevant: [], finite: false, error: String(error) };
+      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, error: String(error) };
     }
   });
   console.log('Official IBB station registry diagnostic: ' + JSON.stringify(gpsRegistryAudit));
   record('official IBB station registry returns mapped coordinates',
     gpsRegistryAudit.ok && gpsRegistryAudit.finite && gpsRegistryAudit.count > 0,
     JSON.stringify(gpsRegistryAudit));
+  record('static GPS fallback matches official IBB points for seven verified line-station keys',
+    gpsRegistryAudit.fallbackMatchesOfficial,
+    JSON.stringify(gpsRegistryAudit.fallbackComparisons));
 
   const swState = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return { supported: false, controlled: false, cacheNames: [] };

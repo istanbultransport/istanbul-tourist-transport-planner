@@ -149,3 +149,21 @@ Keep the product in **pre-release verification** until the coordinate, transfer,
 - Current status across the audit: 49 rows compared; 22 close/match records; 27 unresolved records. **No app coordinates were changed.**
 - Actions for commit `6165fee` passed: [Static and Browser QA](https://github.com/istanbultransport/istanbul-tourist-transport-planner/actions/runs/37948174322) and [Pages build/deployment](https://github.com/istanbultransport/istanbul-tourist-transport-planner/actions/runs/37948171840). Live smoke reported **16 passed, 0 failed**; expected and live build both `V230.12.19-BUSINESS-ROUTE-QA`; service-worker/cache version matched; offline app shell worked; no uncaught JavaScript or console errors. Browser QA loaded all 40 end-to-end route fixtures and passed the GPS permission, station-exit registry, unverified-transfer blocking, and offline-cache checks.
 - The report-only commit triggered its own workflow runs; those must be checked separately before calling the very latest repository state fully green.
+
+
+## Official IBB station API cross-check and static fallback corrections — 2026-10-09
+
+- Live browser smoke test called the app's existing official endpoint `https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetStations` and received **230 mapped station records**. This is stronger evidence than third-party map-only comparison for the station points returned by this endpoint.
+- Official API points observed in the live test and now used by the static/offline fallback:
+  - M5 Ümraniye: `41.0247504412, 29.0849146199` (previous fallback was ~1.8 km away).
+  - M5 Dudullu: `41.0154404556, 29.1624463539` (previous fallback was ~1.7 km away).
+  - M5 Çekmeköy: `41.0145661700, 29.1894478115` (previous fallback was ~1.9 km away).
+  - M2 Şişli-Mecidiyeköy: `41.0645069127, 28.9926697578` (previous fallback was ~0.5–0.6 km away).
+  - M2 Levent: `41.0767734293, 29.0136876237` (previous fallback was ~0.5–0.6 km away).
+  - M7 Kağıthane: `41.0799698, 28.9722495` (previous fallback was ~80 m away).
+  - M3 Kayaşehir Merkez: `41.1200643721, 28.7666429962` (previous fallback was ~190 m away).
+- The coordinates above are the operator API's station points, not proof that each point is the best public pedestrian entrance. The code and cache version were updated to `V230.12.20-IBB-GPS-FALLBACK` / `itp-v230.12.20-core`; the static fallback is now aligned with the official online data for those seven station/line keys.
+- M11 Kağıthane and M11 Kayaşehir remain separate from M7/M3; the IBB response did not return corresponding M11 records in this diagnostic. Marmaray is also not covered by these seven API comparisons. No unverified M11 or Marmaray point was overwritten.
+- Audit statuses after the seven API-aligned corrections: {"CROSS_CHECKED_NONOFFICIAL_SOURCE_VARIANCE_REVIEW":14,"CROSS_CHECKED_NONOFFICIAL_SOURCE_CLOSE_MATCH":14,"CROSS_CHECKED_NONOFFICIAL_SOURCE_MATCH":6,"CROSS_CHECKED_COORDINATE_MISMATCH_CONFIRMED":6,"COORDINATE_VARIANCE_REVIEW_REQUIRED":2,"CROSS_CHECKED_OFFICIAL_SOURCE_MATCH":7}. 22 rows remain unresolved for release; this includes non-official-source variance reviews, unresolved variance checks and confirmed mismatches. Non-operator points are not treated as operator-certified.
+- Added a live smoke assertion that compares the seven static fallback points to the corresponding live IBB API points (10 m tolerance). This guards against a future offline fallback drifting away from the official station registry.
+- Prior commit `bfb1a5f` verified the official endpoint was reachable and returned finite mapped coordinates; its live smoke passed 17/17 checks. The new commit's Actions must pass before the correction is considered complete.
