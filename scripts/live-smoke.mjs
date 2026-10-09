@@ -110,7 +110,8 @@ try {
       const apiUnmatchedKeys = allFallbackComparisons.filter(row => !row.covered).map(row => ({ station: row.station, mode: row.mode, label: row.label }));
       const m11EntranceTargets = [
         ['kagithane_hub','M11 Metro',41.08035,28.9756],
-        ['olimpiyat','M11 Metro',41.078967,28.768925]
+        ['olimpiyat','M11 Metro',41.078967,28.768925],
+        ['kayasehir_hub','M11 Metro',41.117733,28.765983]
       ];
       const m11EntranceChecks = m11EntranceTargets.map(([station, mode, lat, lng]) => {
         const local = fallback.find(row => row.station === station && row.mode === mode);
@@ -172,7 +173,7 @@ try {
   record('four Marmaray static fallbacks match station-specific Google Maps entrance pins',
     gpsRegistryAudit.marmarayEntrancesMatchSource,
     JSON.stringify(gpsRegistryAudit.marmarayEntranceChecks));
-  record('two M11 static fallbacks match geotagged station entrances',
+  record('three M11 static fallbacks match geotagged station entrances',
     gpsRegistryAudit.m11EntrancesMatchSource,
     JSON.stringify(gpsRegistryAudit.m11EntranceChecks));
 
