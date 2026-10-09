@@ -56,19 +56,39 @@ async function run(){
     return scripts.length>0 && scripts.every(s=>{try{new Function(s.textContent);return true;}catch(_){return false;}});
   });
 
-  test('Başlangıç konum kartları ilk açılışta çiziliyor',()=>{
-    return w.document.querySelectorAll('#list .place[data-id]').length>0;
+  test('Başlangıç konum kartları ilk açılışta çiziliyor ve görünür',()=>{
+    const cards=[...w.document.querySelectorAll('#list .place[data-id]')];
+    if(!cards.length) return false;
+    const visible=el=>{
+      const css=w.getComputedStyle(el), rect=el.getBoundingClientRect();
+      return css.display!=='none' && css.visibility!=='hidden' && Number(css.opacity||1)>0 && rect.height>0;
+    };
+    return cards.slice(0,5).every(visible);
   });
 
-  test('Semt/turistik yer arama alanı görünür DOM içinde mevcut',()=>{
-    return !!w.document.querySelector('#startPlaceSearch, #uiRecoveryPlaceSearch');
+  test('Semt/turistik yer arama alanı DOM içinde ve görünür',()=>{
+    const el=w.document.querySelector('#startPlaceSearch, #uiRecoveryPlaceSearch');
+    if(!el) return false;
+    const css=w.getComputedStyle(el);
+    return css.display!=='none' && css.visibility!=='hidden' && el.getBoundingClientRect().height>0;
   });
 
-  test('Avrupa/Anadolu filtreleri etkileşim alıyor',()=>{
+  test('Anadolu Yakası filtresi doğru kartları gösteriyor',()=>{
     const btn=w.document.querySelector('.filter[data-filter="Anadolu Yakası"]');
     if(!btn) return false;
     btn.click();
-    return btn.classList.contains('active') && w.document.querySelectorAll('#list .place[data-id]').length>0;
+    const ids=[...w.document.querySelectorAll('#list .place[data-id]')].map(el=>el.dataset.id);
+    const data=w.eval('places');
+    return btn.classList.contains('active') && ids.length>0 && ids.every(id=>data.some(p=>p.id===id && p.side==='Anadolu Yakası'));
+  });
+
+  test('Avrupa Yakası filtresi doğru kartları gösteriyor',()=>{
+    const btn=w.document.querySelector('.filter[data-filter="Avrupa Yakası"]');
+    if(!btn) return false;
+    btn.click();
+    const ids=[...w.document.querySelectorAll('#list .place[data-id]')].map(el=>el.dataset.id);
+    const data=w.eval('places');
+    return btn.classList.contains('active') && ids.length>0 && ids.every(id=>data.some(p=>p.id===id && p.side==='Avrupa Yakası'));
   });
 
   test('Şehri Keşfet paneli açılıp kapanıyor',()=>{
@@ -84,6 +104,18 @@ async function run(){
     if(!btn||!panel) return false;
     btn.click(); const opened=panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='false';
     btn.click(); const closed=!panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='true';
+    return opened&&closed;
+  });
+
+  test('Ulaşım haritası açılıp kapanıyor',()=>{
+    const btn=w.document.getElementById('transportMapTab');
+    const panel=w.document.getElementById('transportMapOverlay');
+    const close=w.document.getElementById('transportMapClose');
+    if(!btn||!panel||!close) return false;
+    btn.click();
+    const opened=panel.classList.contains('open');
+    close.click();
+    const closed=!panel.classList.contains('open');
     return opened&&closed;
   });
 
