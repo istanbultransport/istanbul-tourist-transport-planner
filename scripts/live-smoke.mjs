@@ -21,7 +21,7 @@ try {
   let response = null;
   let actualBuild = '';
   let lastError = '';
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= 8; attempt++) {
     try {
       response = await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForSelector('#list .place[data-id]', { timeout: 12000 });
@@ -31,7 +31,7 @@ try {
     } catch (error) {
       lastError = error.message;
     }
-    if (attempt < 4) {
+    if (attempt < 8) {
       await page.waitForTimeout(15000);
       await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
     }

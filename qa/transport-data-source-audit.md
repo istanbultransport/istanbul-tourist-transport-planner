@@ -239,3 +239,11 @@ This batch reviewed four remaining variance records against station-specific sec
 - **Olimpiyatköy M11 (cross-line check):** retains the geotagged entrance point `41.078967, 28.768925`; M9 Olimpiyat remains at its distinct official IBB point `41.0797858226, 28.7684944422`. The station is an interchange, but line-specific fallback points are not collapsed to one coordinate.
 - Build/cache bumped to `V230.12.24-KAYASEHIR-M11-ENTRANCE` / `itp-v230.12.24-core`. Browser QA now asserts that M11 Kayaşehir remains separate from M3 Kayaşehir Merkez; live smoke includes all three geotagged M11 entrance targets. This commit's Actions must pass before the batch is marked green.
 - Audit totals: 49 records; 44 close/matched; 5 unresolved (four Marmaray variance reviews and the Feneryolu confirmed mismatch).
+
+
+## CI reliability fix — deployment race between Pages and live smoke — 2026-10-09
+
+- On build `V230.12.24-KAYASEHIR-M11-ENTRANCE`, Static QA passed and Browser QA passed, but live smoke ran while Pages deployment was still publishing and saw the previous cache version `itp-v230.12.23-core`. The same job log confirmed the new HTML build ID was already served and the new M11 coordinate assertions passed; the failing assertion was the service-worker cache still being one deployment behind.
+- This is a CI ordering/race issue, not evidence of a station-coordinate regression. Live smoke previously retried deployment visibility four times (~45 seconds); that window was too short for this deployment.
+- Increased the live build/cache visibility retry window to eight attempts (~105 seconds) before marking the live build/cache version mismatch as a failure. This keeps the check strict but tolerates the normal Pages propagation window.
+- The new workflow run must confirm the fix; do not mark the current build fully green based only on static/browser success.
