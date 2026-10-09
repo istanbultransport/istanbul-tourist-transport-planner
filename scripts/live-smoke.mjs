@@ -135,7 +135,23 @@ try {
         const dy = (local.lat - lat) * 111320;
         const dx = (local.lng - lng) * 111320 * Math.cos(meanLat);
         const meters = Math.hypot(dx, dy);
-        const crossLineStationPairs = [
+        return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
+      });
+      const m11EntranceTargets = [
+        ['kagithane_hub','M11 Metro',41.08035,28.9756],
+        ['olimpiyat','M11 Metro',41.078967,28.768925],
+        ['kayasehir_hub','M11 Metro',41.117733,28.765983]
+      ];
+      const m11EntranceChecks = m11EntranceTargets.map(([station, mode, lat, lng]) => {
+        const local = fallback.find(row => row.station === station && row.mode === mode);
+        if (!local) return { station, mode, meters: null, ok: false };
+        const meanLat = (local.lat + lat) / 2 * Math.PI / 180;
+        const dy = (local.lat - lat) * 111320;
+        const dx = (local.lng - lng) * 111320 * Math.cos(meanLat);
+        const meters = Math.hypot(dx, dy);
+        return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
+      });
+      const crossLineStationPairs = [
         { station: 'ayrilik', a: 'M4 Metro', b: 'Marmaray', min: 0, max: 150 },
         { station: 'uskudar', a: 'M5 Metro', b: 'Marmaray', min: 0, max: 200 },
         { station: 'kartal_hub', a: 'M4 Metro', b: 'Marmaray', min: 500, max: Infinity },
@@ -144,12 +160,10 @@ try {
       const crossLineStationChecks = crossLineStationPairs.map(pair => {
         const a = fallback.find(row => row.station === pair.station && row.mode === pair.a);
         const b = fallback.find(row => row.station === pair.station && row.mode === pair.b);
-        if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat)) return { ...pair, meters: null, ok: false };
+        if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat)) return { station: pair.station, a: pair.a, b: pair.b, meters: null, ok: false };
         const meanLat = (a.lat + b.lat) / 2 * Math.PI / 180;
         const meters = Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * Math.cos(meanLat));
         return { station: pair.station, a: pair.a, b: pair.b, meters: Math.round(meters), ok: meters >= pair.min && meters <= pair.max };
-      });
-      return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
       });
       return {
         ok: rows.length > 0,
@@ -166,12 +180,14 @@ try {
         apiUnmatchedKeys,
         marmarayEntranceChecks,
         m11EntranceChecks,
+        crossLineStationChecks,
+        crossLineStationPairsOk: crossLineStationChecks.length === crossLineStationPairs.length && crossLineStationChecks.every(row => row.ok),
         allOfficialFallbacksMatch: apiCovered.length >= 29 && apiOutliers.length === 0,
         marmarayEntrancesMatchSource: marmarayEntranceChecks.length === marmarayEntranceTargets.length && marmarayEntranceChecks.every(row => row.ok),
         m11EntrancesMatchSource: m11EntranceChecks.length === m11EntranceTargets.length && m11EntranceChecks.every(row => row.ok)
       };
     } catch (error) {
-      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, allFallbackComparisons: [], apiCoveredCount: 0, apiOutliers: [], apiUnmatchedKeys: [], marmarayEntranceChecks: [], m11EntranceChecks: [], allOfficialFallbacksMatch: false, marmarayEntrancesMatchSource: false, m11EntrancesMatchSource: false, error: String(error) };
+      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, allFallbackComparisons: [], apiCoveredCount: 0, apiOutliers: [], apiUnmatchedKeys: [], marmarayEntranceChecks: [], m11EntranceChecks: [], crossLineStationChecks: [], crossLineStationPairsOk: false, allOfficialFallbacksMatch: false, marmarayEntrancesMatchSource: false, m11EntrancesMatchSource: false, error: String(error) };
     }
   });
   console.log('Official IBB station registry diagnostic: ' + JSON.stringify(gpsRegistryAudit));

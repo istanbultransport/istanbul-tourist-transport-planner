@@ -258,3 +258,9 @@ Added browser and live-smoke regression checks for four pairs whose names are sh
 - **Kartal M4 ↔ Marmaray:** ~2,630 m; distinct stations despite sharing “Kartal” in the label (must remain >500 m apart).
 - **Pendik M4 ↔ Marmaray:** ~1,069 m; distinct stations despite sharing “Pendik” (must remain >500 m apart).
 - No application coordinates changed in this batch. The purpose is to prevent future fallback updates from collapsing distinct stations or making interchange geometry implausible. The live smoke will report the measured distances and fail if any pair crosses its tolerance.
+
+
+### Batch 3 test correction
+
+- First live-smoke run for batch 3 exposed a test-code placement error: the cross-line pair calculation had been inserted inside the Marmaray point-comparison callback, so it never populated the top-level diagnostic result. The app coordinates were not implicated; all preceding live coordinate, cache and M11 checks passed.
+- Moved the four-pair geometry comparison to the diagnostic's correct scope so live smoke can report all four distances and evaluate the tolerance assertions. Static QA and Browser QA passed; the corrected live smoke and deployment must be rerun before this batch is green.
