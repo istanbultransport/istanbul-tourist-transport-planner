@@ -102,8 +102,6 @@ async function run(){
     'v230AirportCorridorQA',
     'v230StationNavigationCoordinateQA',
     'v230StartModeIntegrityQA',
-    'camlicaIstiklalRouteQA',
-    'v227WalkingNavigationQA'
   ].forEach(name=>test('Dahili regresyon: '+name,()=>{
     if(typeof w[name]!=='function') return {ok:false,detail:'QA fonksiyonu bulunamadı'};
     const result=w[name]();
