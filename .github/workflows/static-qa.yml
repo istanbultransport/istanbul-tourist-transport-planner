@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/static-qa.mjs
+      - run: node --check scripts/live-smoke.mjs
 
   browser-qa:
     runs-on: ubuntu-latest
@@ -26,3 +27,20 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/itp-http.log 2>&1 &
       - run: node scripts/browser-qa.mjs
+
+
+  live-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm init -y
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Verify deployed app, version, route UI, JS errors, and offline cache
+        env:
+          LIVE_APP_URL: ${{ vars.LIVE_APP_URL }}
+        run: node scripts/live-smoke.mjs
