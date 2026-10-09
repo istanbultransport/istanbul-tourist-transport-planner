@@ -62,9 +62,12 @@ try {
 
 check('QA harness checks initial place cards and visibility', qa.includes('Başlangıç konum kartları ilk açılışta çiziliyor ve görünür'));
 check('QA harness checks visible place search', qa.includes('Semt/turistik yer arama alanı DOM içinde ve görünür'));
+check('QA harness checks build badge consistency', qa.includes('Canlı build rozeti HTML build kimliğiyle eşleşiyor'));
+check('QA harness checks place-search filtering', qa.includes('Yer araması sonuç listesini filtreliyor'));
 check('QA harness checks Anadolu filter results', qa.includes('Anadolu Yakası filtresi doğru kartları gösteriyor'));
 check('QA harness checks Avrupa filter results', qa.includes('Avrupa Yakası filtresi doğru kartları gösteriyor'));
 check('QA harness checks discovery panel', qa.includes('Şehri Keşfet paneli açılıp kapanıyor'));
+check('QA harness checks discovery category cards', qa.includes('Şehri Keşfet kategorisi gerçek kartlar üretiyor'));
 check('QA harness checks ticket panel', qa.includes('Bilet yardım paneli açılıp kapanıyor'));
 check('QA harness checks transport map', qa.includes('Ulaşım haritası açılıp kapanıyor'));
 check('service worker cache is versioned', /CACHE_NAME='itp-v230\.12\.\d+-core'/.test(sw));
