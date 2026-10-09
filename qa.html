@@ -21,8 +21,12 @@ const out=document.getElementById('results');
 const summary=document.getElementById('summary');
 const tests=[];
 function test(name,fn){
-  try{const value=fn();tests.push({name,ok:value===true,detail:value===true?'PASS':String(value)});}
-  catch(e){tests.push({name,ok:false,detail:e&&e.message?e.message:String(e)});}
+  try{
+    const value=fn();
+    const ok=value===true || !!(value && typeof value==='object' && value.ok===true);
+    const detail=value===true?'PASS':(value && typeof value==='object' && value.detail ? String(value.detail) : String(value));
+    tests.push({name,ok,detail});
+  } catch(e){tests.push({name,ok:false,detail:e&&e.message?e.message:String(e)});}
 }
 function render(){
   out.innerHTML=tests.map(t=>'<div class="test '+(t.ok?'ok':'fail')+'">'+(t.ok?'✓':'✗')+' '+t.name+(t.ok?'':' — '+t.detail)+'</div>').join('');
@@ -82,6 +86,31 @@ async function run(){
     btn.click(); const closed=!panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='true';
     return opened&&closed;
   });
+
+  [
+    'currentLocationProductionQA',
+    'currentLocationPresentationQA',
+    'lastMilePresentationQA',
+    'v223CurrentLocationAccessQA',
+    'v23012_6PendikAirportAccessQA',
+    'v23012_6GpsBoardingPresentationQA',
+    'v23012_6AirportBoardingGuardQA',
+    'v223Fix3QA',
+    'v223RouteDecisionQA',
+    'v223SamePhysicalStationFinalAccessQA',
+    'deepRouteRegressionQA',
+    'v230AirportCorridorQA',
+    'v230StationNavigationCoordinateQA',
+    'v230StartModeIntegrityQA',
+    'camlicaIstiklalRouteQA',
+    'v227WalkingNavigationQA'
+  ].forEach(name=>test('Dahili regresyon: '+name,()=>{
+    if(typeof w[name]!=='function') return {ok:false,detail:'QA fonksiyonu bulunamadı'};
+    const result=w[name]();
+    const status=result && result.status;
+    const failures=result && (result.failures||result.tests?.filter(t=>t.ok===false)||[]);
+    return {ok:status==='PASS',detail:'status='+String(status)+'; hata='+(Array.isArray(failures)?failures.length:'bilinmiyor')};
+  }));
 
   test('Kalıcı local/session storage kullanılmıyor',()=>{
     const src=w.document.documentElement.outerHTML;
