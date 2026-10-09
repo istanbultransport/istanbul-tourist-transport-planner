@@ -125,13 +125,18 @@ try {
         from: start?.id || null,
         to: selectedTarget?.id || null,
         routeText: document.getElementById('route')?.innerText?.trim() || '',
-        routeHtml: document.getElementById('route')?.innerHTML || ''
+        routeHtml: document.getElementById('route')?.innerHTML || '',
+        stepCards: document.querySelectorAll('#route .step').length,
+        summaryLabels: [...document.querySelectorAll('#route .route-summary .route-stat span')].map(n => n.textContent.trim())
       }));
+      const hasJourneySummary = ['Tahmini yolculuk','aktarma','ulaşım adımı'].every(label => flow.summaryLabels.includes(label));
       const valid = flow.from === item.from && flow.to === item.to &&
-        flow.routeText.length > 0 && flow.routeHtml.length > 0;
+        flow.routeText.length > 0 && flow.routeHtml.length > 0 &&
+        flow.stepCards > 0 && hasJourneySummary;
       record('UI route flow '+item.id, valid, JSON.stringify({
         expectedFrom: item.from, actualFrom: flow.from,
         expectedTo: item.to, actualTo: flow.to,
+        stepCards: flow.stepCards, summaryLabels: flow.summaryLabels,
         routeText: flow.routeText.slice(0, 240)
       }));
     } catch (error) {
