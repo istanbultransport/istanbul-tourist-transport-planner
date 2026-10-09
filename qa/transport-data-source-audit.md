@@ -69,3 +69,13 @@ Keep the product in **pre-release verification** until the coordinate, transfer,
 - Duplicate-coordinate groups detected: Ayrılık Çeşmesi M4/Marmaray; Üsküdar Marmaray/M5; Yenikapı Marmaray/M2; Kağıthane M7/M11; Kayaşehir M3/M11; and **Olimpiyat M11/Halkalı Stadı M11**. Shared coordinates may be valid for connected interchange nodes, but each pair must be reviewed; Olimpiyat/Halkalı Stadı is a high-priority possible coordinate-copy error.
 - The current static M4 GPS registry is partial: it contains 11 M4 records, while Metro İstanbul's official M4 page lists 23 stations. Do not infer the missing stations are covered by this GPS candidate list.
 - No application coordinates were changed in this step. The CSV is an audit inventory only; the release gate remains blocked until each row has an independently checked coordinate source and a recorded result.
+
+
+## First independent coordinate cross-check — 2026-10-09
+
+- Updated `qa/station-coordinate-audit.csv` to add a dedicated `coordinate_evidence_source_url` field and recorded source-backed outcomes for three records.
+- **Confirmed mismatch:** `Olimpiyat M11` incorrectly reused the `Halkalı Stadı M11` coordinate `41.05629, 28.77441`. Wikidata's Olimpiyatköy record, DailyMetro's station entry and a geotagged Wikimedia Commons station photo place Olimpiyatköy around `41.07855, 28.76951`. The CSV now records that corrected candidate and marks the mismatch; the app's `index.html` has **not** been changed yet. Because the coordinate references are non-operator sources, retain an operator/official-map confirmation as a release follow-up.
+- **Cross-check match:** `Halkalı Stadı M11` remains `41.05629, 28.77441`, matching multiple map/catalogue references.
+- **Cross-check match:** `Olimpiyat M9` remains `41.07954, 28.76719`, close to the geotagged Wikimedia Commons photo location and other map/catalogue references. This is a separate M9 station from Olimpiyatköy M11.
+- Sources: https://www.wikidata.org/wiki/Q113516923 ; https://dailymetro.live/istanbul/en/station/olimpiyatkoy ; https://commons.wikimedia.org/wiki/File:M11_Olimpiyatk%C3%B6y_Metro_%C4%B0stasyonu_21062026_12.jpg ; https://www.wikidata.org/wiki/Q113518000 ; https://dailymetro.live/istanbul/en/station/halkal-stad ; https://mapcarta.com/N10702895858 ; https://commons.wikimedia.org/wiki/File:M9_Olimpiyat_-_Peron_kat%C4%B1_2026.jpg ; https://dailymetro.live/istanbul/station/olimpiyat ; https://turkipedia.com/Olimpiyat_%28%C4%B0stanbul_Metrosu%29
+- Remaining 46 records are still pending independent coordinate checks. Do not treat the overall GPS dataset as verified.
