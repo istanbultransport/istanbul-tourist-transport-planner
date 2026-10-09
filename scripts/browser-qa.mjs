@@ -145,6 +145,87 @@ try {
   }
   record('40 end-to-end UI route flows loaded', cases.routeCases.length === 40, 'count='+cases.routeCases.length);
 
+  // Execute the route-engine's own acceptance suite; these checks existed in
+  // index.html but CI did not invoke them, leaving ferry regressions undetected.
+  const savedStartForEngineQA = await page.evaluate(() => {
+    const prior = start;
+    start = { id: 'wyndham_grand_kalamis', name: 'Wyndham Grand Istanbul Kalamış Marina Hotel' };
+    return prior;
+  });
+  const engineQA = await page.evaluate(() =>
+    typeof v223AcceptanceQA === 'function' ? v223AcceptanceQA() : null
+  );
+  await page.evaluate(prior => { start = prior; }, savedStartForEngineQA);
+  if (engineQA?.tests?.length) {
+    for (const test of engineQA.tests) {
+      record('route-engine acceptance ' + test.id, test.status === 'PASS', test.detail || '');
+    }
+  } else {
+    record('route-engine acceptance suite is callable', false, 'v223AcceptanceQA missing or returned no tests');
+  }
+
+  // Deterministic GPS regression: the nearest node is Pendik M4, but the
+  // target's optimal first boarding may be Pendik Marmaray. Stub walking
+  // estimates so the test is independent of any live/paid routing API.
+  const gpsBoardingAudit = await page.evaluate(async () => {
+    const saved = {
+      start,
+      currentLocation,
+      currentLocationStation,
+      stationAccess: stationSearchAccess.current_location,
+      startAccess: startRailAccess.current_location,
+      exactWalkingEstimate
+    };
+    try {
+      const rows = staticGpsStationCoordinates();
+      const m4 = rows.find(x => x.station === 'pendik' && x.mode === 'M4 Metro');
+      const marmaray = rows.find(x => x.station === 'pendik' && x.mode === 'Marmaray');
+      if (!m4 || !marmaray) return { error: 'Pendik M4/Marmaray candidates missing' };
+
+      start = { id: 'current_location', name: 'Mevcut konumum', isCurrentLocation: true };
+      stationSearchAccess.current_location = { station: 'pendik', mode: 'M4 Metro', label: 'Pendik M4', direct: true };
+      startRailAccess.current_location = stationSearchAccess.current_location;
+      exactWalkingEstimate = async (_origin, coord) => {
+        if (coord.station === 'pendik' && coord.mode === 'M4 Metro') {
+          return { minutes: 4, distanceKm: 0.32, source: 'qa-fixture' };
+        }
+        if (coord.station === 'pendik' && coord.mode === 'Marmaray') {
+          return { minutes: 8, distanceKm: 0.64, source: 'qa-fixture' };
+        }
+        return null;
+      };
+      const chosen = await buildAdaptiveStartAccess(
+        'current_location',
+        { id: 'agva', name: 'Ağva', kind: 'Turistik nokta' },
+        { lat: 40.888385865460556, lng: 29.23816910887322 }
+      );
+      const m4Path = minimumRailRoute('pendik', 'agva', 4, null, 'M4 Metro');
+      const marmarayPath = minimumRailRoute('pendik', 'agva', 4, null, 'Marmaray');
+      return {
+        chosenStation: chosen?.station || null,
+        chosenMode: chosen?.mode || null,
+        chosenPathModes: chosen?.path?.map(s => s[2]) || [],
+        m4PathModes: m4Path?.map(s => s[2]) || [],
+        marmarayPathModes: marmarayPath?.map(s => s[2]) || [],
+        candidateModesPresent: { m4: !!m4Path, marmaray: !!marmarayPath }
+      };
+    } finally {
+      start = saved.start;
+      currentLocation = saved.currentLocation;
+      currentLocationStation = saved.currentLocationStation;
+      if (saved.stationAccess === undefined) delete stationSearchAccess.current_location;
+      else stationSearchAccess.current_location = saved.stationAccess;
+      if (saved.startAccess === undefined) delete startRailAccess.current_location;
+      else startRailAccess.current_location = saved.startAccess;
+      exactWalkingEstimate = saved.exactWalkingEstimate;
+    }
+  });
+  record(
+    'GPS Pendik → Ağva evaluates optimal first boarding, not only nearest station',
+    gpsBoardingAudit?.chosenMode === 'Marmaray',
+    JSON.stringify(gpsBoardingAudit)
+  );
+
   record('40 route fixtures loaded', cases.routeCases.length === 40, 'count='+cases.routeCases.length);
 
   const accessAudit = await page.evaluate(() => {
