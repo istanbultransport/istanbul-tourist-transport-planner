@@ -32,9 +32,12 @@ const ids = [...staticMarkup.matchAll(/\bid=["']([^"'$]+)["']/g)].map(m => m[1])
 const duplicates = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
 check('no duplicate static HTML IDs', duplicates.length === 0, duplicates.join(', '));
 const idSet = new Set(ids);
+// These IDs are intentionally created by render()/safeCards() template strings,
+// so they are valid runtime nodes even though they are absent from initial markup.
+const dynamicIds = new Set(['startPlaceSearch', 'targetPlaceSearch', 'uiRecoveryPlaceSearch']);
 const refs = [...html.matchAll(/getElementById\(['"]([^'"]+)['"]\)/g)].map(m => m[1]);
-const missing = [...new Set(refs.filter(id => !idSet.has(id)))];
-check('getElementById references resolve', missing.length === 0, missing.join(', '));
+const missing = [...new Set(refs.filter(id => !idSet.has(id) && !dynamicIds.has(id)))];
+check('getElementById references resolve (including documented dynamic IDs)', missing.length === 0, missing.join(', '));
 
 const required = [
   ['async GPS callback', 'getCurrentPosition(async pos=>{'],
