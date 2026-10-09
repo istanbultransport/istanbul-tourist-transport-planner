@@ -1613,7 +1613,7 @@ function route(a,b){
  // Böylece ilçe → turistik nokta ve turistik nokta → ilçe rotaları da
  // istasyon erişimi, gerçek aktarma noktaları ve 1,3 km yürüyüş kuralını kullanır.
  const special=specialFerryTouristRoute(a,b); if(special) return special;
- if(aObj?.kind==='Turistik nokta' || bObj?.kind==='Turistik nokta'){
+ if(aObj?.kind==='Turistik nokta' || bObj?.kind==='Turistik nokta' || touristAccess[a] || touristAccess[b]){
    const walkKm=touristWalkDistanceKm(a,b);
    if(aObj?.kind==='Turistik nokta' && bObj?.kind==='Turistik nokta' && walkKm!==null && walkKm<=1.3){
      const mins=Math.max(2,Math.round(walkKm/0.08));
@@ -3051,6 +3051,9 @@ const startLocalAccessRegistry={
 };
 
 const touristAccess={
+  four_seasons_sultanahmet:{station:'sultanahmet',mode:'T1 Tramvay',label:'Sultanahmet T1',local:true},
+  karakoy_lokantasi:{station:'karakoy',mode:'T1 Tramvay',label:'Karaköy T1',local:true},
+  ciya_sofrasi:{station:'kadikoy',mode:'T3 Tramvay',label:'Kadıköy T3',local:true},
   sabiha:{station:'sabiha',mode:'M4 Metro',label:'Sabiha Gökçen M4',direct:true},
   'istanbul-airport':{station:'istanbul-airport',mode:'M11 Metro',label:'İstanbul Havalimanı M11',direct:true},
   sultanahmet:{station:'sultanahmet',mode:'T1 Tramvay',label:'Sultanahmet T1'},
