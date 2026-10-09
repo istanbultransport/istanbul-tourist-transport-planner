@@ -5953,6 +5953,7 @@ function v227WalkingNavigationQA(){
 <script>
 /* V230.12.13 UI hardening: render cards independently if the normal renderer throws. */
 (function(){
+  var recoveryQuery='';
   function safeCards(){
     var listEl=document.getElementById('list');
     if(!listEl) return;
@@ -5963,7 +5964,7 @@ function v227WalkingNavigationQA(){
       }
       var started=typeof start!=='undefined' && !!start;
       var qStart=document.getElementById('startPlaceSearch');
-      var query=(started?(typeof targetPlaceSearch==='string'?targetPlaceSearch:''):(qStart?qStart.value:'')).toLocaleLowerCase('tr-TR').trim();
+      var query=(started?(typeof targetPlaceSearch==='string'?targetPlaceSearch:''):recoveryQuery).toLocaleLowerCase('tr-TR').trim();
       var activeFilter=typeof filter==='string'?filter:'Tümü';
       var shown=places.filter(function(p){
         var sideOK=activeFilter==='Tümü'||p.side===activeFilter;
@@ -5976,7 +5977,7 @@ function v227WalkingNavigationQA(){
       var searchEl=document.getElementById('uiRecoveryPlaceSearch');
       if(searchEl) searchEl.addEventListener('input',function(){
         if(started && typeof targetPlaceSearch!=='undefined') targetPlaceSearch=this.value;
-        else { var original=document.getElementById('startPlaceSearch'); if(original) original.value=this.value; }
+        else recoveryQuery=this.value;
         // Avoid depending on the possibly failing main render function.
         safeCards();
         var next=document.getElementById('uiRecoveryPlaceSearch');
