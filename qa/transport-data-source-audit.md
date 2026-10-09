@@ -218,3 +218,14 @@ Keep the product in **pre-release verification** until the coordinate, transfer,
 - Last full CI result: Static QA passed, Browser QA 113/113, Live smoke 21/21, Pages deployment success.
 - Current 49-row coordinate audit: 43 close/matched rows and 6 unresolved rows. Remaining unresolved entries are four nonofficial-source variance reviews, one confirmed Feneryolu Marmaray mismatch (exact entrance still unverified), and one M11 Kayaşehir point that remains ambiguous between the M3 and M11 entrance areas.
 - No coordinate should be changed for those remaining six records until the specific entrance/access point is identified and station identity is distinguished from neighboring stations/platforms.
+
+
+## Four-record batch review — Bostancı, Göztepe, Ayrılık Çeşmesi, Üsküdar Marmaray — 2026-10-09
+
+This batch reviewed four remaining variance records against station-specific secondary map references and entrance evidence. **No application coordinates were changed** because the available references establish station locations but do not consistently establish the exact public entrance for the Marmaray line:
+
+- **Bostancı:** OSM/Mapcarta point `40.95393, 29.09490` differs by ~135 m; another directory point `40.9538, 29.0952` is still ~100 m from the app point. Entrance not independently confirmed.
+- **Göztepe:** OSM/Mapcarta point `40.97921, 29.06263` differs by ~75 m. A Google Maps directions result confirms station identity but not a precise entrance pin.
+- **Ayrılık Çeşmesi:** Marmaray OSM node `41.00015, 29.03010` is ~40–50 m away. Geotagged photos around `41.00035, 29.03005` identify the M4 metro entrance; they do not prove the correct Marmaray public entrance, so line-specific point remains unchanged.
+- **Üsküdar:** OSM/Mapcarta Marmaray node `41.02564, 29.01315` is ~50 m away, while another directory gives `41.0259, 29.0148`. Metro İstanbul names a distinct “İETT durakları–Marmaray girişi”, but the consulted reference does not give its exact coordinates. The M5 point was not copied onto Marmaray.
+- Audit notes now record the comparison and why each point is being held. This is a completed evidence review, not a claim that the four entrance coordinates are verified. Next batch will handle the remaining Feneryolu mismatch and M11 Kayaşehir ambiguity, plus two cross-line station/access checks to keep batches at four records.
