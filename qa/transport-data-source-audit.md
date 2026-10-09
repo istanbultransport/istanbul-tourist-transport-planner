@@ -116,5 +116,22 @@ Keep the product in **pre-release verification** until the coordinate, transfer,
   - M3 Kayaşehir Merkez and M11 Kayaşehir are distinct stations; preserve separate coordinates. The M3 station is mapped around `41.11908, 28.76634`; the M11 station is nearby but not identical.
 - Official Metro İstanbul route pages confirm station names, line identity and interchange relationships, but do not publish precise latitude/longitude in the reviewed pages. Mapcarta/OSM and other catalogues are comparison evidence, not an operator coordinate feed.
 - **No live application coordinates were changed.** The CSV records candidate source points and discrepancy notes only. Do not auto-replace the app's coordinate from a map node until the exact intended point (platform, station centroid, entrance or transfer node) and station identity are verified.
-- The last run for commit `a3a79e3` passed both Static and Browser QA and GitHub Pages deployment. The newer commit `10486de` has its own QA and Pages runs queued at the time this report was written; their outcomes must be checked before claiming that commit's workflows passed.
+- Commit `c52c1e1` completed successfully in both Static and Browser QA and GitHub Pages deployment. The next coordinate-audit commit is checked separately; do not infer its workflow status from the prior commit.
 
+
+
+## Coordinate audit: high-confidence mismatches and M2 follow-up — 2026-10-09
+
+- Re-reviewed the Marmaray discrepancies against station-node coordinates and geotagged station photos, then cross-checked the kilometre-scale M5 discrepancies against additional catalogues. Updated `qa/station-coordinate-audit.csv` in commit `53fbf3212820805c544fe7efe47880a0ca7f188a`.
+- **Mismatch confirmed in the audit (application code unchanged):**
+  - **Yunus Marmaray:** app candidate `40.87620, 29.22150`; Mapcarta/OSM station node `40.88456, 29.21041`, approximately 1.3 km apart. Wikidata repeats the same station coordinate, but shares likely source lineage; this remains provisional pending operator-map confirmation.
+  - **Kaynarca Marmaray:** app candidate `40.86510, 29.23250`; Mapcarta/OSM and a geotagged Wikimedia Commons station photo place the station around `40.87137, 29.25596`, approximately 2.1 km apart.
+  - **Kartal Marmaray:** app candidate `40.88560, 29.20840`; Mapcarta/OSM plus a geotagged platform photo place Kartal around `40.88869, 29.19108`, approximately 1.5 km apart. The app candidate is near the Yunus area, so the station-to-coordinate mapping must be rebuilt by identity, not fixed by blindly swapping points.
+  - **Ümraniye M5:** two nearby OSM station nodes cluster around `41.025, 29.084`, versus app `41.02670, 29.10630` (about 1.9 km).
+  - **Dudullu M5:** Mapcarta/OSM and DurakRehberi cluster around `41.0155, 29.1633`, versus app `41.00180, 29.15320` (about 1.7 km).
+  - **Çekmeköy M5:** Mapcarta/OSM, DailyMetro and Metrocazar cluster around `41.0145, 29.1895`, versus app `41.02800, 29.17580` (about 1.9 km).
+- **M2 Şişhane:** a university thesis station-coordinate appendix provides `41.028661, 28.974896`, around 105 m from the app candidate. This closes the no-comparison gap but leaves a point-definition review; the thesis is not an operator coordinate feed.
+- **Kağıthane M7/M11:** the M7 point matches its Mapcarta/OSM node, while the M11 node is about 292 m east. The line-specific rows remain distinct in the audit; no coordinates were copied into the app.
+- Updated status totals across all 49 records: 11 close matches, 7 non-official source matches, 14 non-official-source variance reviews, 10 coordinate-variance reviews, and 7 confirmed coordinate mismatches. There are no longer any rows without a first-pass comparison, but **31 records remain unresolved for release** (24 variance reviews plus 7 mismatches). Non-operator source matches are provisional, not operator-certified.
+- Evidence links: https://mapcarta.com/N1907439622 ; https://www.wikidata.org/wiki/Q58814876 ; https://commons.wikimedia.org/wiki/File:Kaynarca_Tren_%C4%B0stasyonu.jpg ; https://commons.wikimedia.org/wiki/File:Kartal_Tren_%C4%B0stasyonu.jpg ; https://mapcarta.com/N13819360040 ; https://durakrehberi.com/metro/istasyonlar/dudullu-60014/ ; https://dailymetro.live/istanbul/station/cekmekoy ; https://metrocazar.com/php/index_istanbul.php?action=showStation&from=84 ; https://nek.istanbul.edu.tr/ekos/TEZ/60672.pdf ; https://mapcarta.com/N8853285393
+- **No app coordinates were changed.** Next: continue resolving remaining M2/M7/M11 and other line-specific variance records; then map each confirmed mismatch to the exact station/entrance/transfer node, apply only the verified corrections, and run full route/QA/live smoke regression.
