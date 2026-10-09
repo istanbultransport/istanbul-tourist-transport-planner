@@ -247,3 +247,14 @@ This batch reviewed four remaining variance records against station-specific sec
 - This is a CI ordering/race issue, not evidence of a station-coordinate regression. Live smoke previously retried deployment visibility four times (~45 seconds); that window was too short for this deployment.
 - Increased the live build/cache visibility retry window to eight attempts (~105 seconds) before marking the live build/cache version mismatch as a failure. This keeps the check strict but tolerates the normal Pages propagation window.
 - The new workflow run must confirm the fix; do not mark the current build fully green based only on static/browser success.
+
+
+## Four-record batch 3 — same-name cross-line station geometry — 2026-10-09
+
+Added browser and live-smoke regression checks for four pairs whose names are shared across lines but whose access points should not be blindly merged:
+
+- **Ayrılık Çeşmesi M4 ↔ Marmaray:** ~42 m; expected close interchange complex (≤150 m).
+- **Üsküdar M5 ↔ Marmaray:** ~115 m; expected close interchange complex (≤200 m).
+- **Kartal M4 ↔ Marmaray:** ~2,630 m; distinct stations despite sharing “Kartal” in the label (must remain >500 m apart).
+- **Pendik M4 ↔ Marmaray:** ~1,069 m; distinct stations despite sharing “Pendik” (must remain >500 m apart).
+- No application coordinates changed in this batch. The purpose is to prevent future fallback updates from collapsing distinct stations or making interchange geometry implausible. The live smoke will report the measured distances and fail if any pair crosses its tolerance.

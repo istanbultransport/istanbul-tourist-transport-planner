@@ -157,6 +157,22 @@ try {
       olimpiyatM11EntranceOk: (() => { const row = gps.find(x => x.station === 'olimpiyat' && x.mode === 'M11 Metro'); return !!row && row.label === 'Olimpiyatköy M11' && Math.abs(row.lat - 41.078967) < 0.000001 && Math.abs(row.lng - 28.768925) < 0.000001; })(),
       kagithaneM11EntranceOk: (() => { const row = gps.find(x => x.station === 'kagithane_hub' && x.mode === 'M11 Metro'); return !!row && row.label === 'Kağıthane M11' && Math.abs(row.lat - 41.08035) < 0.000001 && Math.abs(row.lng - 28.9756) < 0.000001; })(),
       kayasehirM11EntranceOk: (() => { const m11 = gps.find(x => x.station === 'kayasehir_hub' && x.mode === 'M11 Metro'); const m3 = gps.find(x => x.station === 'kayasehir_hub' && x.mode === 'M3 Metro'); return !!m11 && !!m3 && Math.abs(m11.lat - 41.117733) < 0.000001 && Math.abs(m11.lng - 28.765983) < 0.000001 && Math.hypot((m11.lat - m3.lat) * 111320, (m11.lng - m3.lng) * 111320 * Math.cos(m11.lat * Math.PI / 180)) > 100; })(),
+      crossLineStationPairsOk: (() => {
+        const pairs = [
+          { station: 'ayrilik', a: 'M4 Metro', b: 'Marmaray', min: 0, max: 150 },
+          { station: 'uskudar', a: 'M5 Metro', b: 'Marmaray', min: 0, max: 200 },
+          { station: 'kartal_hub', a: 'M4 Metro', b: 'Marmaray', min: 500, max: Infinity },
+          { station: 'pendik', a: 'M4 Metro', b: 'Marmaray', min: 500, max: Infinity }
+        ];
+        return pairs.every(pair => {
+          const a = gps.find(row => row.station === pair.station && row.mode === pair.a);
+          const b = gps.find(row => row.station === pair.station && row.mode === pair.b);
+          if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat)) return false;
+          const meanLat = (a.lat + b.lat) / 2 * Math.PI / 180;
+          const meters = Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * Math.cos(meanLat));
+          return meters >= pair.min && meters <= pair.max;
+        });
+      })(),
       exitsOk: exits.length > 0 && exits.every(x => x.no !== undefined && !!x.name),
       transferGuardOk: hasVerifiedTransitTransfers(fake) === false && hasVerifiedTransitTransfers(real) === true,
       falseWalkGuardOk: (touristWalkTime('uskudar','anadolu_hisari') == null) && (lastMileWalkMinutes.anadolu_hisari == null)
@@ -166,6 +182,7 @@ try {
   record('M11 Olimpiyatköy fallback targets geotagged entrance', accessAudit.olimpiyatM11EntranceOk);
   record('M11 Kağıthane fallback targets geotagged Entrance 1', accessAudit.kagithaneM11EntranceOk);
   record('M11 Kayaşehir entrance is distinct from M3 Kayaşehir Merkez', accessAudit.kayasehirM11EntranceOk);
+  record('four same-name cross-line station coordinate pairs preserve correct geometry', accessAudit.crossLineStationPairsOk);
   record('station exit registry entries have names and IDs', accessAudit.exitsOk);
   record('unverified same-node transfer is blocked', accessAudit.transferGuardOk);
   record('unverified short walking link is not invented', accessAudit.falseWalkGuardOk);

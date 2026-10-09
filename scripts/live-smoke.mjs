@@ -135,7 +135,21 @@ try {
         const dy = (local.lat - lat) * 111320;
         const dx = (local.lng - lng) * 111320 * Math.cos(meanLat);
         const meters = Math.hypot(dx, dy);
-        return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
+        const crossLineStationPairs = [
+        { station: 'ayrilik', a: 'M4 Metro', b: 'Marmaray', min: 0, max: 150 },
+        { station: 'uskudar', a: 'M5 Metro', b: 'Marmaray', min: 0, max: 200 },
+        { station: 'kartal_hub', a: 'M4 Metro', b: 'Marmaray', min: 500, max: Infinity },
+        { station: 'pendik', a: 'M4 Metro', b: 'Marmaray', min: 500, max: Infinity }
+      ];
+      const crossLineStationChecks = crossLineStationPairs.map(pair => {
+        const a = fallback.find(row => row.station === pair.station && row.mode === pair.a);
+        const b = fallback.find(row => row.station === pair.station && row.mode === pair.b);
+        if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat)) return { ...pair, meters: null, ok: false };
+        const meanLat = (a.lat + b.lat) / 2 * Math.PI / 180;
+        const meters = Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * Math.cos(meanLat));
+        return { station: pair.station, a: pair.a, b: pair.b, meters: Math.round(meters), ok: meters >= pair.min && meters <= pair.max };
+      });
+      return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
       });
       return {
         ok: rows.length > 0,
@@ -173,6 +187,9 @@ try {
   record('four Marmaray static fallbacks match station-specific Google Maps entrance pins',
     gpsRegistryAudit.marmarayEntrancesMatchSource,
     JSON.stringify(gpsRegistryAudit.marmarayEntranceChecks));
+  record('four same-name cross-line station pairs preserve correct geometry',
+    gpsRegistryAudit.crossLineStationPairsOk,
+    JSON.stringify(gpsRegistryAudit.crossLineStationChecks));
   record('three M11 static fallbacks match geotagged station entrances',
     gpsRegistryAudit.m11EntrancesMatchSource,
     JSON.stringify(gpsRegistryAudit.m11EntranceChecks));
