@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "title": "Istanbul Tourist Transport Planner — 20-location manual regression set",
+  "purpose": "Validate existing registered-place selection and route flow before any Google Places API integration. Coordinates and route times must be verified against trusted map/transit sources before being treated as expected results.",
+  "policy": {
+    "noPaidApi": true,
+    "noUnverifiedCoordinates": true,
+    "noInventedEtas": true,
+    "passRule": "Mark PASS only after performing the scenario in the deployed app and checking the visible result. Static presence of a test is not a runtime pass.",
+    "failureCapture": [
+      "build-id",
+      "start-place",
+      "destination-place",
+      "selected-station",
+      "transfers",
+      "walking-minutes",
+      "console-error",
+      "screenshot"
+    ]
+  },
+  "locations": [
+    {
+      "id": "IST",
+      "name": "İstanbul Havalimanı",
+      "type": "airport",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "SAW",
+      "name": "Sabiha Gökçen Havalimanı",
+      "type": "airport",
+      "area": "Anadolu Yakası"
+    },
+    {
+      "id": "PENDIK_MARMARAY",
+      "name": "Pendik Marmaray İstasyonu",
+      "type": "rail_station",
+      "area": "Anadolu Yakası"
+    },
+    {
+      "id": "KADIKOY_PIER",
+      "name": "Kadıköy İskelesi",
+      "type": "pier",
+      "area": "Anadolu Yakası"
+    },
+    {
+      "id": "YENIKAPI",
+      "name": "Yenikapı İstasyonu",
+      "type": "rail_station",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "HAGIA_SOPHIA",
+      "name": "Ayasofya",
+      "type": "tourist_attraction",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "BLUE_MOSQUE",
+      "name": "Sultanahmet Camii",
+      "type": "tourist_attraction",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "GALATA_TOWER",
+      "name": "Galata Kulesi",
+      "type": "tourist_attraction",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "TAKSIM",
+      "name": "Taksim Meydanı",
+      "type": "landmark",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "DOLMABAHCE",
+      "name": "Dolmabahçe Sarayı",
+      "type": "tourist_attraction",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "KADIKOY_MARKET",
+      "name": "Kadıköy Çarşı",
+      "type": "neighborhood",
+      "area": "Anadolu Yakası"
+    },
+    {
+      "id": "MODA",
+      "name": "Moda Sahili",
+      "type": "landmark",
+      "area": "Anadolu Yakası"
+    },
+    {
+      "id": "USKUDAR",
+      "name": "Üsküdar Meydanı",
+      "type": "landmark",
+      "area": "Anadolu Yakası"
+    },
+    {
+      "id": "BESIKTAS",
+      "name": "Beşiktaş Meydanı",
+      "type": "landmark",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "ORTAKOY",
+      "name": "Ortaköy Meydanı",
+      "type": "landmark",
+      "area": "Avrupa Yakası"
+    },
+    {
+      "id": "HILTON_BOSPHORUS",
+      "name": "Hilton Istanbul Bosphorus",
+      "type": "hotel",
+      "area": "Avrupa Yakası",
+      "businessNameNeedsVerification": true
+    },
+    {
+      "id": "CVK_PARK_BOSPHORUS",
+      "name": "CVK Park Bosphorus Hotel Istanbul",
+      "type": "hotel",
+      "area": "Avrupa Yakası",
+      "businessNameNeedsVerification": true
+    },
+    {
+      "id": "FOUR_SEASONS_SULTANAHMET",
+      "name": "Four Seasons Hotel Istanbul at Sultanahmet",
+      "type": "hotel",
+      "area": "Avrupa Yakası",
+      "businessNameNeedsVerification": true
+    },
+    {
+      "id": "CIYA_SOFRA",
+      "name": "Çiya Sofrası",
+      "type": "restaurant",
+      "area": "Anadolu Yakası",
+      "businessNameNeedsVerification": true
+    },
+    {
+      "id": "KARAKOY_RESTAURANT",
+      "name": "Karaköy restoranı — test işletmesi seçilecek",
+      "type": "restaurant",
+      "area": "Avrupa Yakası",
+      "businessNameNeedsVerification": true
+    }
+  ],
+  "routeCases": [
+    {
+      "id": "R01",
+      "from": "PENDIK_MARMARAY",
+      "to": "IST",
+      "focus": "Uzun mesafe rota; başlangıçta Pendik çevresindeki uygun Marmaray bağlantısının değerlendirilmesi; alternatifler görünür olmalı."
+    },
+    {
+      "id": "R02",
+      "from": "KADIKOY_MARKET",
+      "to": "HAGIA_SOPHIA",
+      "focus": "Anadolu-Avrupa geçişi; iskele ve yürüme adımları."
+    },
+    {
+      "id": "R03",
+      "from": "HILTON_BOSPHORUS",
+      "to": "SAW",
+      "focus": "Otel başlangıcının seçimi ve koordinatın hedef/rota motoruna aktarılması."
+    },
+    {
+      "id": "R04",
+      "from": "CIYA_SOFRA",
+      "to": "TAKSIM",
+      "focus": "Restoran adıyla başlangıç seçimi; aynı adlı/benzer sonuçların ayrıştırılması."
+    },
+    {
+      "id": "R05",
+      "from": "TAKSIM",
+      "to": "SAW",
+      "focus": "Havalimanı varış senaryosu."
+    },
+    {
+      "id": "R06",
+      "from": "SAW",
+      "to": "KADIKOY_PIER",
+      "focus": "Kısa bağlantı ve uygun toplu taşıma seçimi."
+    },
+    {
+      "id": "R07",
+      "from": "YENIKAPI",
+      "to": "PENDIK_MARMARAY",
+      "focus": "Marmaray güzergâhı ve istasyon eşleştirmesi."
+    },
+    {
+      "id": "R08",
+      "from": "USKUDAR",
+      "to": "HAGIA_SOPHIA",
+      "focus": "Feribot/rail alternatifleri ve son yürüyüş."
+    },
+    {
+      "id": "R09",
+      "from": "GALATA_TOWER",
+      "to": "DOLMABAHCE",
+      "focus": "Yokuş/yürüme bağlantısı ve uygun başlangıç istasyonu."
+    },
+    {
+      "id": "R10",
+      "from": "ORTAKOY",
+      "to": "TAKSIM",
+      "focus": "Son ulaşım ve yaya süresi."
+    },
+    {
+      "id": "R11",
+      "from": "BESIKTAS",
+      "to": "KADIKOY_MARKET",
+      "focus": "Deniz ulaşımı seçeneği ve iskele adlandırması."
+    },
+    {
+      "id": "R12",
+      "from": "MODA",
+      "to": "SAW",
+      "focus": "Anadolu Yakası'ndan havalimanına rota."
+    },
+    {
+      "id": "R13",
+      "from": "FOUR_SEASONS_SULTANAHMET",
+      "to": "IST",
+      "focus": "Otel başlangıcı; doğru yer seçimi ve havalimanı rotası."
+    },
+    {
+      "id": "R14",
+      "from": "CVK_PARK_BOSPHORUS",
+      "to": "KADIKOY_PIER",
+      "focus": "Otel → iskele; son yürüyüş ve deniz geçişi."
+    },
+    {
+      "id": "R15",
+      "from": "KARAKOY_RESTAURANT",
+      "to": "USKUDAR",
+      "focus": "Restoran başlangıcı ve kıtalar arası rota."
+    },
+    {
+      "id": "R16",
+      "from": "HAGIA_SOPHIA",
+      "to": "BLUE_MOSQUE",
+      "focus": "Yakın hedef; gereksiz uzun toplu taşıma rotası üretmemeli."
+    },
+    {
+      "id": "R17",
+      "from": "DOLMABAHCE",
+      "to": "BESIKTAS",
+      "focus": "Kısa yürüme bağlantısı; yürümek daha uygunsa bu seçenek açık olmalı."
+    },
+    {
+      "id": "R18",
+      "from": "TAKSIM",
+      "to": "GALATA_TOWER",
+      "focus": "Yokuş ve gerçek yürüme süresi; kuş uçuşu mesafe yeterli değil."
+    },
+    {
+      "id": "R19",
+      "from": "HILTON_BOSPHORUS",
+      "to": "ORTAKOY",
+      "focus": "Otel başlangıcı ve son ulaşım."
+    },
+    {
+      "id": "R20",
+      "from": "CIYA_SOFRA",
+      "to": "MODA",
+      "focus": "Restoran/landmark seçimi; kısa rota ve yürüyüş."
+    }
+  ],
+  "perCaseChecks": [
+    "Başlangıç ve hedef alanları seçilen yerin doğru adını gösteriyor.",
+    "Seçim koordinatı veya yer kimliği mevcut rota motoruna aktarılıyor; sadece görünen etiket değişmiyor.",
+    "Rota hesaplama hata vermeden tamamlanıyor veya kullanıcıya anlaşılır hata gösteriyor.",
+    "İstasyon, aktarma, iskele ve son yürüyüş adımları doğrulanabilir kaynaklarla tutarlı.",
+    "Yürüyüş süreleri gerçek yaya güzergâhına göre kontrol ediliyor; kuş uçuşu mesafe ETA yerine kullanılmıyor.",
+    "Ters yönde seçim de çalışıyor; başlangıç/hedef yerleri karışmıyor.",
+    "Mobil görünümde sonuç seçimi ve rota kartları kullanılabilir.",
+    "Tekrar arama, temizleme ve yeni rota hesaplama önceki durumdan etkilenmiyor."
+  ]
+}
