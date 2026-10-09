@@ -1,16 +1,16 @@
-<!-- V230.12.11-LIVE-GPS-STATE-FIX: adaptive access + explicit starting-line + authoritative station navigation. -->
+<!-- V230.12.13-UI-RECOVERY: adaptive access + explicit starting-line + authoritative station navigation. -->
 <!doctype html>
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.12.11-LIVE-GPS-STATE-FIX">
+<meta name="build-id" content="V230.12.13-UI-RECOVERY">
 <meta name="theme-color" content="#10243b">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>Istanbul Tourist Transport Planner — V230 Coordinate QA</title>
 <script>
 (function(){
-  window.__APP_BUILD_ID__='V230.12.11-LIVE-GPS-STATE-FIX';
+  window.__APP_BUILD_ID__='V230.12.13-UI-RECOVERY';
   try{
     if('serviceWorker' in navigator){
       window.addEventListener('load',function(){
@@ -184,7 +184,7 @@ footer{padding:28px 18px;color:var(--muted);font-size:12px}footer a{color:var(--
 </head>
 <body>
 <header><div class="wrap">
-<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12.11-LIVE-GPS-STATE-FIX</span></div>
+<div class="top"><div><h1>Istanbul Tourist Transport Planner</h1><p class="sub">Önce nerede olduğunu seç. Sonra gideceğin yeri seç. Rota otomatik oluşsun.</p></div><span class="tag" id="buildBadge">V230.12.13-UI-RECOVERY</span></div>
 <div class="panel search">
 <h2 id="stationSearchTitle">📍 Şu an neredesin?</h2>
 <div id="stationSearchHint" style="margin:0 0 10px;font-size:12px;font-weight:800;color:#5f6b76">📍 Yakınındaki durağın tam adını yaz.</div>
@@ -5526,7 +5526,7 @@ window.v23012_6GpsBoardingPresentationQA=v23012_6GpsBoardingPresentationQA;
   window.v23012_6AirportBoardingGuardQA=v23012_6AirportBoardingGuardQA;
 })();
 </script>
-<script>/* V230.12.11-LIVE-GPS-STATE-FIX focused QA */
+<script>/* V230.12.13-UI-RECOVERY focused QA */
 (function(){
  function v223Fix3QA(){
   const out={status:'PASS',failures:[],checks:{}};
@@ -5899,7 +5899,7 @@ function v222DataAudit(){
  window.__V222_DATA_AUDIT__=out; return out;
 }
 window.v222DataAudit=v222DataAudit;
-console.info('[Istanbul Tourist Transport Planner] BUILD V230.12.11-LIVE-GPS-STATE-FIX');
+console.info('[Istanbul Tourist Transport Planner] BUILD V230.12.13-UI-RECOVERY');
 })();
 
 function v227WalkingNavigationQA(){
@@ -5951,55 +5951,91 @@ function v227WalkingNavigationQA(){
 </script>
 
 <script>
-/* V230.12.12 UI recovery: keep primary navigation usable if an earlier initializer aborts. */
+/* V230.12.13 UI hardening: render cards independently if the normal renderer throws. */
 (function(){
-  function recoverUI(){
+  function safeCards(){
+    var listEl=document.getElementById('list');
+    if(!listEl) return;
     try {
-      if(typeof render==='function') render();
-    } catch(err) {
-      console.error('[ITP UI recovery] Initial render failed:',err);
-      var listEl=document.getElementById('list');
-      if(listEl && !listEl.innerHTML.trim()) {
-        listEl.innerHTML='<div role="alert" style="margin-top:14px;padding:14px;border:1px solid #f0b4b4;border-radius:12px;background:#fff5f5;color:#8b1e1e">Konum kartları yüklenemedi. Arayüz başlatılırken hata oluştu.</div>';
+      if(typeof places==='undefined' || !Array.isArray(places) || !places.length) {
+        listEl.innerHTML='<div role="alert" style="margin-top:14px;padding:14px;border:1px solid #f0b4b4;border-radius:12px;background:#fff5f5;color:#8b1e1e">Konum verileri yüklenemedi.</div>';
+        return;
       }
+      var started=typeof start!=='undefined' && !!start;
+      var qStart=document.getElementById('startPlaceSearch');
+      var query=(started?(typeof targetPlaceSearch==='string'?targetPlaceSearch:''):(qStart?qStart.value:'')).toLocaleLowerCase('tr-TR').trim();
+      var activeFilter=typeof filter==='string'?filter:'Tümü';
+      var shown=places.filter(function(p){
+        var sideOK=activeFilter==='Tümü'||p.side===activeFilter;
+        return sideOK && (!query || String(p.name||'').toLocaleLowerCase('tr-TR').includes(query)) && (!started || p.id!==start.id);
+      });
+      var title=started?'📍 Nereye gitmek istiyorsun?':'📍 Başlangıç Noktaları';
+      var search='<div class="place-search-heading">🔎 Semt / turistik nokta ara <span>'+(started?'Varış için':'Başlangıç için')+'</span></div><div class="start-place-search"><span class="search-icon">🔎</span><input id="uiRecoveryPlaceSearch" type="search" autocomplete="off" aria-label="Semt veya turistik nokta ara" placeholder="Semt veya turistik nokta ara · Örn: Bebek, Kadıköy, Ayasofya" value="'+query.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>';
+      var cards=shown.map(function(p){return '<button type="button" class="place" data-ui-recovery-place="'+String(p.id).replace(/"/g,'&quot;')+'"><span class="emoji">'+(p.emoji||'📍')+'</span><b>'+String(p.name||'').replace(/</g,'&lt;')+'</b><small>'+String(p.side||'')+' · '+String(p.desc||'')+'</small></button>';}).join('');
+      listEl.innerHTML=(started?'<div class="selection-change"><div class="selection-current"><b>Başlangıç:</b> '+(start.emoji||'📍')+' '+String(start.name||'')+'</div></div>':'')+'<div class="section-title">'+title+'</div>'+search+'<div class="list">'+(cards||'<div style="padding:14px;color:#667085;font-size:13px">Aramanla eşleşen yer bulunamadı.</div>')+'</div>';
+      var searchEl=document.getElementById('uiRecoveryPlaceSearch');
+      if(searchEl) searchEl.addEventListener('input',function(){
+        if(started && typeof targetPlaceSearch!=='undefined') targetPlaceSearch=this.value;
+        else { var original=document.getElementById('startPlaceSearch'); if(original) original.value=this.value; }
+        // Avoid depending on the possibly failing main render function.
+        safeCards();
+        var next=document.getElementById('uiRecoveryPlaceSearch');
+        if(next){next.focus();next.setSelectionRange(next.value.length,next.value.length);}
+      });
+      listEl.querySelectorAll('[data-ui-recovery-place]').forEach(function(btn){
+        btn.onclick=function(){
+          var id=btn.getAttribute('data-ui-recovery-place');
+          try {
+            if(started && typeof selectDestination==='function') selectDestination(id);
+            else if(!started && typeof selectStart==='function') selectStart(id);
+          } catch(err){console.error('[ITP UI recovery] place selection failed:',err);}
+        };
+      });
+    } catch(err) {
+      console.error('[ITP UI recovery] fallback cards failed:',err);
+      listEl.innerHTML='<div role="alert" style="margin-top:14px;padding:14px;border:1px solid #f0b4b4;border-radius:12px;background:#fff5f5;color:#8b1e1e">Konum kartları oluşturulamadı. Ayrıntı konsola kaydedildi.</div>';
     }
+  }
+  function bindNavigation(){
     document.querySelectorAll('.filter').forEach(function(btn){
       btn.onclick=function(){
-        try {
+        try{
           if(typeof closeInfoPanels==='function') closeInfoPanels();
           document.querySelectorAll('.filter').forEach(function(b){b.classList.remove('active');});
           btn.classList.add('active');
           if(typeof filter!=='undefined') filter=btn.dataset.filter||'Tümü';
-          if(typeof render==='function') render();
-        } catch(err){ console.error('[ITP UI recovery] Filter click failed:',err); }
+          try { if(typeof render==='function') render(); } catch(err){console.error('[ITP UI] render failed after filter:',err);}
+          safeCards();
+        }catch(err){console.error('[ITP UI recovery] filter failed:',err);safeCards();}
       };
     });
-    var cityTab=document.getElementById('cityExploreTab');
-    var cityPanel=document.getElementById('cityExplorePanel');
-    var ticketTab=document.getElementById('ticketHelpTab');
-    var ticketPanel=document.getElementById('ticketHelpPanel');
-    if(cityTab && cityPanel) cityTab.onclick=function(){
+    var cityTab=document.getElementById('cityExploreTab'), cityPanel=document.getElementById('cityExplorePanel');
+    var ticketTab=document.getElementById('ticketHelpTab'), ticketPanel=document.getElementById('ticketHelpPanel');
+    if(cityTab&&cityPanel) cityTab.onclick=function(){
       var open=!cityPanel.classList.contains('open');
-      cityPanel.classList.toggle('open',open); cityPanel.setAttribute('aria-hidden',String(!open));
-      cityTab.classList.toggle('active',open);
-      if(ticketPanel){ticketPanel.classList.remove('open');ticketPanel.setAttribute('aria-hidden','true');}
-      if(ticketTab) ticketTab.classList.remove('active');
-      if(open){document.querySelectorAll('.discover-tab').forEach(function(b){b.classList.remove('active');});var dl=document.getElementById('discoverList');if(dl)dl.innerHTML='<div class="discover-hint">Bir kategori seçerek içindeki yerleri görüntüleyebilirsin.</div>';}
+      cityPanel.classList.toggle('open',open);cityPanel.style.display=open?'block':'none';cityPanel.setAttribute('aria-hidden',String(!open));cityTab.classList.toggle('active',open);
+      if(ticketPanel){ticketPanel.classList.remove('open');ticketPanel.style.display='none';ticketPanel.setAttribute('aria-hidden','true');}
+      if(ticketTab)ticketTab.classList.remove('active');
     };
-    if(ticketTab && ticketPanel) ticketTab.onclick=function(){
+    if(ticketTab&&ticketPanel) ticketTab.onclick=function(){
       var open=!ticketPanel.classList.contains('open');
-      ticketPanel.classList.toggle('open',open);ticketPanel.setAttribute('aria-hidden',String(!open));ticketTab.classList.toggle('active',open);
-      if(cityPanel){cityPanel.classList.remove('open');cityPanel.setAttribute('aria-hidden','true');}
-      if(cityTab) cityTab.classList.remove('active');
+      ticketPanel.classList.toggle('open',open);ticketPanel.style.display=open?'block':'none';ticketPanel.setAttribute('aria-hidden',String(!open));ticketTab.classList.toggle('active',open);
+      if(cityPanel){cityPanel.classList.remove('open');cityPanel.style.display='none';cityPanel.setAttribute('aria-hidden','true');}
+      if(cityTab)cityTab.classList.remove('active');
     };
     document.querySelectorAll('.discover-tab').forEach(function(btn){
-      btn.onclick=function(){try{if(typeof renderDiscover==='function')renderDiscover(btn.dataset.discover);}catch(err){console.error('[ITP UI recovery] Discover tab failed:',err);}};
+      btn.onclick=function(){try{if(typeof renderDiscover==='function')renderDiscover(btn.dataset.discover);else safeCards();}catch(err){console.error('[ITP UI recovery] discover failed:',err);}};
     });
     var mapTab=document.getElementById('transportMapTab');
-    if(mapTab && typeof openTransportMap==='function') mapTab.onclick=openTransportMap;
+    if(mapTab) mapTab.onclick=function(){try{if(typeof openTransportMap==='function')openTransportMap();else console.error('[ITP UI recovery] map opener missing');}catch(err){console.error('[ITP UI recovery] map failed:',err);}};
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',recoverUI,{once:true});
-  else recoverUI();
+  function recoverUI(){
+    bindNavigation();
+    try { if(typeof render==='function') render(); } catch(err){console.error('[ITP UI recovery] primary render failed:',err);}
+    var listEl=document.getElementById('list');
+    if(listEl && !listEl.querySelector('.place')) safeCards();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',recoverUI,{once:true});else recoverUI();
 })();
 </script>
 </body></html>
