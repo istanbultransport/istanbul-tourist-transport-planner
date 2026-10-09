@@ -534,6 +534,12 @@
       "focus": "Son ulaşım ve yaya süresi."
     },
     {
+      "id": "R11",
+      "from": "besiktas",
+      "to": "kadikoy_carsi",
+      "focus": "Deniz ulaşımı alternatifi."
+    },
+    {
       "id": "R12",
       "from": "moda_sahili",
       "to": "sabiha",
@@ -564,6 +570,12 @@
       "focus": "Yakın hedef; gereksiz toplu taşıma üretme."
     },
     {
+      "id": "R17",
+      "from": "dolmabahce",
+      "to": "besiktas",
+      "focus": "Kısa yürüyüş alternatifini kontrol et."
+    },
+    {
       "id": "R18",
       "from": "taksim_meydani",
       "to": "galata",
@@ -580,6 +592,12 @@
       "from": "ciya_sofrasi",
       "to": "moda_sahili",
       "focus": "Restoran koordinatının hedefe aktarılması."
+    },
+    {
+      "id": "R21",
+      "from": "istanbul_marriott_hotel_asia",
+      "to": "kadikoy_carsi",
+      "focus": "Anadolu yakası otelinden şehir merkezine."
     },
     {
       "id": "R22",
@@ -636,6 +654,12 @@
       "focus": "Ada → Avrupa yakası iskele rotası."
     },
     {
+      "id": "R31",
+      "from": "moda_sahili",
+      "to": "galata",
+      "focus": "Anadolu yakası sahilinden Avrupa yakasına; iskele/aktarma adımları."
+    },
+    {
       "id": "R32",
       "from": "miniaturk",
       "to": "pierre_loti",
@@ -666,6 +690,18 @@
       "focus": "Anadolu yakası yaya/rail karşılaştırması."
     },
     {
+      "id": "R37",
+      "from": "the_green_park_pendik",
+      "to": "sabiha",
+      "focus": "Pendik otelinden SAW; yakın ulaşım ve son yürüyüş."
+    },
+    {
+      "id": "R38",
+      "from": "istanbul_akvaryum",
+      "to": "istanbul-airport",
+      "focus": "Uzak mesafe ve aktarma kontrolü."
+    },
+    {
       "id": "R39",
       "from": "topkapi",
       "to": "yerebatan",
@@ -676,30 +712,6 @@
       "from": "istanbul_marriott_hotel_asia",
       "to": "galata",
       "focus": "Otel başlangıcı, iki yaka ve aktarmalar."
-    },
-    {
-      "id": "R11",
-      "from": "besiktas",
-      "to": "kadikoy_carsi",
-      "focus": "Deniz ulaşımı alternatifi."
-    },
-    {
-      "id": "R17",
-      "from": "dolmabahce",
-      "to": "besiktas",
-      "focus": "Kısa yürüyüş alternatifini kontrol et."
-    },
-    {
-      "id": "R21",
-      "from": "istanbul_marriott_hotel_asia",
-      "to": "kadikoy_carsi",
-      "focus": "Anadolu yakası otelinden şehir merkezine."
-    },
-    {
-      "id": "R38",
-      "from": "istanbul_akvaryum",
-      "to": "istanbul-airport",
-      "focus": "Uzak mesafe ve aktarma kontrolü."
     }
   ],
   "perCaseChecks": [
