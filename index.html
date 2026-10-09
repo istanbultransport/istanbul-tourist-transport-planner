@@ -4825,7 +4825,7 @@ function useCurrentLocation(){
     resetCurrentLocationButton();
   };
   const watchdog=setTimeout(()=>finishError('Konum alınamadı. Tarayıcı/Windows konum hizmetinin açık olduğundan emin olup tekrar dene.'),20000);
-  navigator.geolocation.getCurrentPosition(pos=>{
+  navigator.geolocation.getCurrentPosition(async pos=>{
     if(settled) return;
     settled=true;
     clearTimeout(watchdog);
