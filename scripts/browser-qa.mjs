@@ -108,7 +108,7 @@ try {
     const cacheState = await offlinePage.evaluate(async () => ({
       controlled: !!navigator.serviceWorker.controller,
       cache: (await caches.keys()).some(k => k === 'itp-v230.12.19-core'),
-      cachedIndex: !!(await caches.open('itp-v230.12.19-core')).match('./index.html')
+      cachedIndex: !!(await (await caches.open('itp-v230.12.19-core')).match('./index.html'))
     }));
     record('PWA service worker controls page and caches app shell', cacheState.controlled && cacheState.cache && cacheState.cachedIndex, JSON.stringify(cacheState));
     await offlineContext.setOffline(true);
