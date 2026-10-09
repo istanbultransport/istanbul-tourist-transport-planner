@@ -248,6 +248,90 @@ async function run(){
     return /lastMileBusRegistry/.test(src);
   });
 
+
+  test('İşletme kayıtları gerçek arama kataloğuna ekli ve koordinatlı',()=>{
+    const rows=w.eval('places');
+    const expected=['four_seasons_sultanahmet','karakoy_lokantasi','ciya_sofrasi'];
+    return expected.every(id=>{const p=rows.find(x=>x.id===id);return !!p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&String(p.desc||'').length>10;});
+  });
+
+  test('Karttan başlangıç seçimi kanonik ID/koordinatı koruyor',()=>{
+    const p=w.eval("places.find(x=>x.id==='karakoy_lokantasi')");
+    if(!p) return false;
+    w.selectStart(p.id);
+    const s=w.eval('start');
+    const ok=!!s&&s.id===p.id&&s.lat===p.lat&&s.lng===p.lng;
+    w.newRoute();
+    return ok;
+  });
+
+  test('İşletme hedef seçimi aynı katalog nesnesini koruyor',()=>{
+    const a=w.eval("places.find(x=>x.id==='kadikoy_carsi')");
+    const b=w.eval("places.find(x=>x.id==='ciya_sofrasi')");
+    if(!a||!b) return false;
+    w.selectStart(a.id);
+    w.selectDestination(b.id);
+    const s=w.eval('start'), t=w.eval('selectedTarget');
+    const ok=s?.id===a.id&&s?.lat===a.lat&&s?.lng===a.lng&&t?.id===b.id&&t?.lat===b.lat&&t?.lng===b.lng;
+    w.newRoute();
+    return ok;
+  });
+
+  test('Faros yaklaşık koordinatla üretim kataloğuna sokulmuyor',()=>!w.eval("places.some(p=>p.id==='faros_karakoy')"));
+
+  // Load the fixture set from its single maintained source; do not duplicate scenarios
+  // inside this HTML, so catalogue and CI changes cannot drift silently.
+  let routeCases = [];
+  try {
+    const fixtureResponse = await fetch('./qa/location-regression-cases.json', {cache:'no-store'});
+    if(!fixtureResponse.ok) throw new Error('HTTP '+fixtureResponse.status);
+    const fixtureData = await fixtureResponse.json();
+    routeCases = Array.isArray(fixtureData.routeCases) ? fixtureData.routeCases : [];
+    test('Tek kaynaklı 40 rota veri seti yükleniyor',()=>routeCases.length===40);
+  } catch (error) {
+    test('Tek kaynaklı 40 rota veri seti yükleniyor',()=>({ok:false,detail:String(error?.message||error)}));
+  }
+  test('Rota senaryosu uç noktaları katalogda mevcut',()=>{
+    const known=new Set(w.eval('places.map(p=>p.id)'));
+    return routeCases.length===40 && routeCases.every(item=>known.has(item.from)&&known.has(item.to));
+  });
+  const routeFixtureResults = routeCases.map(item=>{
+    try{
+      const knownPlace=id=>w.eval('places.some(p=>p.id==='+JSON.stringify(id)+')');
+      const endpointsKnown=knownPlace(item.from)&&knownPlace(item.to);
+      const from=w.eval('places.find(p=>p.id==='+JSON.stringify(item.from)+')');
+      const to=w.eval('places.find(p=>p.id==='+JSON.stringify(item.to)+')');
+      let path=null, routeSource='place graph';
+      if(endpointsKnown){
+        path=w.eval('route('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+        if(!path) path=w.eval('minimumRailRoute('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+',4,null,null)');
+        if(!path){
+          const candidates=w.eval('generateRouteCandidates('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+          const best=w.eval('selectBestRoute(candidates)');
+          path=best?.path || candidates?.[0]?.path || null;
+          routeSource='candidate graph';
+        }
+      }
+      const validation=Array.isArray(path)&&path.length ? w.eval('validateRoute('+JSON.stringify(path)+')') : {ok:false,reason:'route not found'};
+      const modes=Array.isArray(path)?path.map(step=>step?.[2]):[];
+      const walkingSteps=Array.isArray(path)?path.filter(step=>['Yürüyüş','Son ulaşım'].includes(step?.[2])):[];
+      const transferModes=Array.isArray(path)?modes.filter((mode,i)=>i>0 && mode!==modes[i-1] && !['Yürüyüş','İlçe içi ulaşım','Son ulaşım'].includes(mode) && !['Yürüyüş','İlçe içi ulaşım','Son ulaşım'].includes(modes[i-1])):[];
+      const finalMile=Array.isArray(path)&&path.some(step=>step?.[2]==='Son ulaşım');
+      const knownIdentity=!!from&&!!to&&Number.isFinite(from.lat)&&Number.isFinite(from.lng)&&Number.isFinite(to.lat)&&Number.isFinite(to.lng);
+      const ok=endpointsKnown&&knownIdentity&&Array.isArray(path)&&path.length>0&&validation.ok===true;
+      return {
+        id:item.id,from:item.from,to:item.to,ok,routeSource,
+        steps:Array.isArray(path)?path.length:0, modes,
+        transferChanges:transferModes.length, walkingSteps:walkingSteps.length, finalMile,
+        origin:{id:from?.id,lat:from?.lat,lng:from?.lng},
+        destination:{id:to?.id,lat:to?.lat,lng:to?.lng},
+        detail:ok?'route engine produced a validated path':!endpointsKnown?'endpoint missing from production catalogue':!knownIdentity?'origin/destination ID or coordinates missing':(validation.reason||'route not found')
+      };
+    }catch(e){return {id:item.id,from:item.from,to:item.to,ok:false,detail:String(e?.message||e)};}
+  });
+  window.__ITP_ROUTE_FIXTURE_RESULTS__ = routeFixtureResults;
+  routeFixtureResults.forEach(r=>test('Rota senaryosu '+r.id,()=>({ok:r.ok,detail:r.detail+' ('+r.from+' → '+r.to+')'})));
+
   render();
 }
 run().catch(e=>{summary.textContent='QA çalıştırılamadı: '+e.message;summary.className='fail';});
