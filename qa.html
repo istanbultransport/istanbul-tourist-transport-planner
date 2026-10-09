@@ -73,6 +73,26 @@ async function run(){
     return css.display!=='none' && css.visibility!=='hidden' && el.getBoundingClientRect().height>0;
   });
 
+  test('Canlı build rozeti HTML build kimliğiyle eşleşiyor',()=>{
+    const meta=w.document.querySelector('meta[name="build-id"]');
+    const badge=w.document.getElementById('buildBadge');
+    return !!meta && !!badge && meta.content===badge.textContent.trim() && meta.content===w.__APP_BUILD_ID__;
+  });
+
+  test('Yer araması sonuç listesini filtreliyor',()=>{
+    const input=w.document.querySelector('#startPlaceSearch, #uiRecoveryPlaceSearch');
+    if(!input) return false;
+    input.value='Aqua Florya';
+    input.dispatchEvent(new w.Event('input',{bubbles:true}));
+    const cards=[...w.document.querySelectorAll('#list .place[data-id]')];
+    const ok=cards.length>0 && cards.every(card=>/Aqua Florya/i.test(card.textContent));
+    const clear=w.document.querySelector('.filter[data-filter="Tümü"]');
+    if(clear) clear.click();
+    const next=w.document.querySelector('#startPlaceSearch, #uiRecoveryPlaceSearch');
+    if(next){next.value='';next.dispatchEvent(new w.Event('input',{bubbles:true}));}
+    return ok;
+  });
+
   test('Anadolu Yakası filtresi doğru kartları gösteriyor',()=>{
     const btn=w.document.querySelector('.filter[data-filter="Anadolu Yakası"]');
     if(!btn) return false;
@@ -97,6 +117,18 @@ async function run(){
     btn.click(); const opened=panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='false';
     btn.click(); const closed=!panel.classList.contains('open') && panel.getAttribute('aria-hidden')==='true';
     return opened&&closed;
+  });
+
+  test('Şehri Keşfet kategorisi gerçek kartlar üretiyor',()=>{
+    const open=w.document.getElementById('cityExploreTab');
+    if(!open) return false;
+    open.click();
+    const category=w.document.querySelector('.discover-tab[data-discover="Stadyumlar"]');
+    if(!category) return false;
+    category.click();
+    const hasCards=w.document.querySelectorAll('#discoverList .place[data-id]').length>0;
+    open.click();
+    return hasCards;
   });
 
   test('Bilet yardım paneli açılıp kapanıyor',()=>{
@@ -178,7 +210,8 @@ async function run(){
     w.eval("selectedTarget={id:'qa-target',name:'QA hedefi'}");
     const before=w.eval('selectedTarget');
     try{w.selectStart(id);}finally{w.buildRouteToTarget=original;}
-    return w.eval('selectedTarget')===before;
+    const targetSearch=!!w.document.querySelector('#targetPlaceSearch, #uiRecoveryPlaceSearch');
+    return w.eval('selectedTarget')===before && !!w.eval('start') && targetSearch;
   });
 
   test('GPS değişkenleri tanımlı',()=>[
