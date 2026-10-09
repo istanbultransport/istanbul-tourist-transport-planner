@@ -108,6 +108,19 @@ try {
       const apiCovered = allFallbackComparisons.filter(row => row.covered);
       const apiOutliers = apiCovered.filter(row => !row.ok);
       const apiUnmatchedKeys = allFallbackComparisons.filter(row => !row.covered).map(row => ({ station: row.station, mode: row.mode, label: row.label }));
+      const m11EntranceTargets = [
+        ['kagithane_hub','M11 Metro',41.08035,28.9756],
+        ['olimpiyat','M11 Metro',41.078967,28.768925]
+      ];
+      const m11EntranceChecks = m11EntranceTargets.map(([station, mode, lat, lng]) => {
+        const local = fallback.find(row => row.station === station && row.mode === mode);
+        if (!local) return { station, mode, meters: null, ok: false };
+        const meanLat = (local.lat + lat) / 2 * Math.PI / 180;
+        const dy = (local.lat - lat) * 111320;
+        const dx = (local.lng - lng) * 111320 * Math.cos(meanLat);
+        const meters = Math.hypot(dx, dy);
+        return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 20 };
+      });
       const marmarayEntranceTargets = [
         ['yunus_m','Marmaray',40.88444444,29.21055556],
         ['kaynarca_m','Marmaray',40.87138889,29.25583333],
@@ -137,11 +150,13 @@ try {
         apiOutliers,
         apiUnmatchedKeys,
         marmarayEntranceChecks,
+        m11EntranceChecks,
         allOfficialFallbacksMatch: apiCovered.length >= 29 && apiOutliers.length === 0,
-        marmarayEntrancesMatchSource: marmarayEntranceChecks.length === marmarayEntranceTargets.length && marmarayEntranceChecks.every(row => row.ok)
+        marmarayEntrancesMatchSource: marmarayEntranceChecks.length === marmarayEntranceTargets.length && marmarayEntranceChecks.every(row => row.ok),
+        m11EntrancesMatchSource: m11EntranceChecks.length === m11EntranceTargets.length && m11EntranceChecks.every(row => row.ok)
       };
     } catch (error) {
-      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, allFallbackComparisons: [], apiCoveredCount: 0, apiOutliers: [], apiUnmatchedKeys: [], marmarayEntranceChecks: [], allOfficialFallbacksMatch: false, marmarayEntrancesMatchSource: false, error: String(error) };
+      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, allFallbackComparisons: [], apiCoveredCount: 0, apiOutliers: [], apiUnmatchedKeys: [], marmarayEntranceChecks: [], m11EntranceChecks: [], allOfficialFallbacksMatch: false, marmarayEntrancesMatchSource: false, m11EntrancesMatchSource: false, error: String(error) };
     }
   });
   console.log('Official IBB station registry diagnostic: ' + JSON.stringify(gpsRegistryAudit));
@@ -157,6 +172,9 @@ try {
   record('four Marmaray static fallbacks match station-specific Google Maps entrance pins',
     gpsRegistryAudit.marmarayEntrancesMatchSource,
     JSON.stringify(gpsRegistryAudit.marmarayEntranceChecks));
+  record('two M11 static fallbacks match geotagged station entrances',
+    gpsRegistryAudit.m11EntrancesMatchSource,
+    JSON.stringify(gpsRegistryAudit.m11EntranceChecks));
 
   const swState = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return { supported: false, controlled: false, cacheNames: [] };
