@@ -248,6 +248,71 @@ async function run(){
     return /lastMileBusRegistry/.test(src);
   });
 
+
+  test('İşletme kayıtları gerçek arama kataloğuna ekli ve koordinatlı',()=>{
+    const rows=w.eval('places');
+    const expected=['four_seasons_sultanahmet','karakoy_lokantasi','ciya_sofrasi'];
+    return expected.every(id=>{const p=rows.find(x=>x.id===id);return !!p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&String(p.desc||'').length>10;});
+  });
+
+  test('Karttan başlangıç seçimi kanonik ID/koordinatı koruyor',()=>{
+    const p=w.eval("places.find(x=>x.id==='karakoy_lokantasi')");
+    if(!p) return false;
+    w.selectStart(p.id);
+    const s=w.eval('start');
+    const ok=!!s&&s.id===p.id&&s.lat===p.lat&&s.lng===p.lng;
+    w.newRoute();
+    return ok;
+  });
+
+  test('İşletme hedef seçimi aynı katalog nesnesini koruyor',()=>{
+    const a=w.eval("places.find(x=>x.id==='kadikoy_carsi')");
+    const b=w.eval("places.find(x=>x.id==='ciya_sofrasi')");
+    if(!a||!b) return false;
+    w.selectStart(a.id);
+    w.selectDestination(b.id);
+    const s=w.eval('start'), t=w.eval('selectedTarget');
+    const ok=s?.id===a.id&&s?.lat===a.lat&&s?.lng===a.lng&&t?.id===b.id&&t?.lat===b.lat&&t?.lng===b.lng;
+    w.newRoute();
+    return ok;
+  });
+
+  test('Faros yaklaşık koordinatla üretim kataloğuna sokulmuyor',()=>!w.eval("places.some(p=>p.id==='faros_karakoy')"));
+
+  // This block executes the 40 data fixtures in a real browser against the actual
+  // app's route graph. Engine-path checks are distinct from field ETA verification.
+  const routeCases = [{"id":"R01","from":"pendik","to":"istanbul-airport","focus":"Havalimanı; istasyon düğümü ile ilçe merkezini ayırt et."},{"id":"R02","from":"kadikoy_carsi","to":"ayasofya","focus":"Kıtalar arası geçiş ve son yürüme."},{"id":"R03","from":"hilton_istanbul_bosphorus","to":"sabiha","focus":"Otel başlangıcı ve havalimanı rotası."},{"id":"R04","from":"ciya_sofrasi","to":"taksim_meydani","focus":"Restoran arama/koordinat handoff; adresi doğrula."},{"id":"R05","from":"taksim_meydani","to":"sabiha","focus":"Anadolu yakasına havalimanı rotası."},{"id":"R06","from":"sabiha","to":"kadikoy_carsi","focus":"Havalimanı çıkış noktası ve doğru istasyon."},{"id":"R07","from":"sirkeci_turist","to":"pendik_yht","focus":"Marmaray/YHT istasyon ayrımını kontrol et."},{"id":"R08","from":"uskudar","to":"ayasofya","focus":"İskele/rail alternatifleri ve son yürüme."},{"id":"R09","from":"galata","to":"dolmabahce","focus":"Yokuş, yürüyüş ve uygun istasyon."},{"id":"R10","from":"ortakoy_meydani","to":"taksim_meydani","focus":"Son ulaşım ve yaya süresi."},{"id":"R11","from":"besiktas","to":"kadikoy_carsi","focus":"Deniz ulaşımı alternatifi."},{"id":"R12","from":"moda_sahili","to":"sabiha","focus":"Anadolu yakası havalimanı rotası."},{"id":"R13","from":"four_seasons_sultanahmet","to":"istanbul-airport","focus":"İşletme adresi/koordinatı doğrulanmalı."},{"id":"R14","from":"cvk_park_bosphorus","to":"karakoy_rihtim","focus":"Otel → rıhtım, son yürüyüş."},{"id":"R15","from":"karakoy_lokantasi","to":"uskudar","focus":"Restoran başlangıcı ve kıtalar arası geçiş."},{"id":"R16","from":"ayasofya","to":"sultanahmet_camii","focus":"Yakın hedef; gereksiz toplu taşıma üretme."},{"id":"R17","from":"dolmabahce","to":"besiktas","focus":"Kısa yürüyüş alternatifini kontrol et."},{"id":"R18","from":"taksim_meydani","to":"galata","focus":"Yokuş ve gerçek yürüme güzergâhı."},{"id":"R19","from":"hilton_istanbul_bosphorus","to":"ortakoy_meydani","focus":"Otel başlangıcı ve son ulaşım."},{"id":"R20","from":"ciya_sofrasi","to":"moda_sahili","focus":"Restoran koordinatının hedefe aktarılması."},{"id":"R21","from":"istanbul_marriott_hotel_asia","to":"kadikoy_carsi","focus":"Anadolu yakası otelinden şehir merkezine."},{"id":"R22","from":"doubletree_istanbul_moda","to":"sabiha","focus":"Otel seçimi ve havalimanı bağlantısı."},{"id":"R23","from":"wyndham_grand_kalamis","to":"bostanci_sahili","focus":"Kısa mesafe; yürüme makullüğü."},{"id":"R24","from":"radisson_blu_istanbul_asia","to":"istanbul-airport","focus":"Uzun mesafe ve aktarma tutarlılığı."},{"id":"R25","from":"dedeman_istanbul","to":"galata","focus":"Otel adresi ile hedef koordinat eşleşmesi."},{"id":"R26","from":"karakoy_lokantasi","to":"topkapi","focus":"Restoran başlangıcı ve tarihî yarımada hedefi."},{"id":"R27","from":"faros_karakoy","to":"istanbul_modern","focus":"Restoran işletme konumu ve son yürüyüş."},{"id":"R28","from":"aqua_florya","to":"sirkeci_turist","focus":"Florya’dan raylı sistem erişimi."},{"id":"R29","from":"buyukada","to":"kadikoy_carsi","focus":"Ada ulaşımı; uygun iskele/feribot adımları."},{"id":"R30","from":"heybeliada","to":"eminonu","focus":"Ada → Avrupa yakası iskele rotası."},{"id":"R31","from":"moda_sahili","to":"galata","focus":"Anadolu yakası sahilinden Avrupa yakasına; iskele/aktarma adımları."},{"id":"R32","from":"miniaturk","to":"pierre_loti","focus":"Haliç çevresi, yürüyüş ve bağlantılar."},{"id":"R33","from":"kapalicarsi","to":"misircarsisi","focus":"Yakın hedef; gereksiz uzun rota olmamalı."},{"id":"R34","from":"istanbul_modern","to":"galataport","focus":"Kısa yürüme/uygun erişim."},{"id":"R35","from":"beylerbeyi","to":"kiz_kulesi","focus":"İskele bağlantısı ve yürüme."},{"id":"R36","from":"bagdat_caddesi","to":"fenerbahce_park","focus":"Anadolu yakası yaya/rail karşılaştırması."},{"id":"R37","from":"the_green_park_pendik","to":"sabiha","focus":"Pendik otelinden SAW; yakın ulaşım ve son yürüyüş."},{"id":"R38","from":"istanbul_akvaryum","to":"istanbul-airport","focus":"Uzak mesafe ve aktarma kontrolü."},{"id":"R39","from":"topkapi","to":"yerebatan","focus":"Yakın turistik hedef; son yürüme."},{"id":"R40","from":"istanbul_marriott_hotel_asia","to":"galata","focus":"Otel başlangıcı, iki yaka ve aktarmalar."}];
+  const routeFixtureResults = routeCases.map(item=>{
+    try{
+      const knownPlace=id=>w.eval('places.some(p=>p.id==='+JSON.stringify(id)+')');
+      const endpointsKnown=knownPlace(item.from)&&knownPlace(item.to);
+      const from=w.eval('places.find(p=>p.id==='+JSON.stringify(item.from)+')');
+      const to=w.eval('places.find(p=>p.id==='+JSON.stringify(item.to)+')');
+      let path=null, source='place';
+      if(endpointsKnown){
+        if(w.eval('specialStartIds.has('+JSON.stringify(item.from)+')')){
+          path=w.eval('route('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+          source='place/route';
+        } else {
+          path=w.eval('route('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+          if(!path) path=w.eval('minimumRailRoute('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+',4,null,null)');
+          if(!path){
+            const candidates=w.eval('generateRouteCandidates('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+            const best=w.eval('selectBestRoute('+JSON.stringify(item.from)+','+JSON.stringify(item.to)+')');
+            path=best?.path || candidates?.[0]?.path || null;
+            source='candidate';
+          }
+        }
+      }
+      // Route engine is expected to find a path for connected cases, but no
+      // synthetic ETA or route is invented to force a passing result.
+      const ok=endpointsKnown&&Array.isArray(path)&&path.length>0&&w.eval('validateRoute('+JSON.stringify(path)+').ok')===true;
+      return {id:item.id,from:item.from,to:item.to,ok,source,steps:Array.isArray(path)?path.length:0,detail:ok?'validated engine path':!endpointsKnown?'endpoint missing from place catalogue':'route not found or validation failed'};
+    }catch(e){return {id:item.id,from:item.from,to:item.to,ok:false,detail:String(e?.message||e)};}
+  });
+  window.__ITP_ROUTE_FIXTURE_RESULTS__ = routeFixtureResults;
+  routeFixtureResults.forEach(r=>test('Rota senaryosu '+r.id,()=>({ok:r.ok,detail:r.detail+' ('+r.from+' → '+r.to+')'})));
+
   render();
 }
 run().catch(e=>{summary.textContent='QA çalıştırılamadı: '+e.message;summary.className='fail';});
