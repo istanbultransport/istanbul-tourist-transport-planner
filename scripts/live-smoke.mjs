@@ -92,16 +92,22 @@ try {
       ];
       const fallback = staticGpsStationCoordinates();
       const liveByKey = new Map(rows.map(row => [row.station + '|' + row.mode, row]));
-      const fallbackComparisons = requiredKeys.map(([station, mode]) => {
-        const local = fallback.find(row => row.station === station && row.mode === mode);
-        const live = liveByKey.get(station + '|' + mode);
-        if (!local || !live) return { station, mode, meters: null, ok: false };
+      const comparePoint = (local, live) => {
+        if (!local || !live) return { station: local?.station, mode: local?.mode, covered: false, meters: null, ok: false };
         const meanLat = (local.lat + live.lat) / 2 * Math.PI / 180;
         const dy = (local.lat - live.lat) * 111320;
         const dx = (local.lng - live.lng) * 111320 * Math.cos(meanLat);
         const meters = Math.hypot(dx, dy);
-        return { station, mode, meters: Math.round(meters * 10) / 10, ok: meters <= 10 };
+        return { station: local.station, mode: local.mode, label: local.label, covered: true, meters: Math.round(meters * 10) / 10, app: [local.lat, local.lng], official: [live.lat, live.lng], ok: meters <= 10 };
+      };
+      const fallbackComparisons = requiredKeys.map(([station, mode]) => {
+        const local = fallback.find(row => row.station === station && row.mode === mode);
+        return comparePoint(local, liveByKey.get(station + '|' + mode));
       });
+      const allFallbackComparisons = fallback.map(local => comparePoint(local, liveByKey.get(local.station + '|' + local.mode)));
+      const apiCovered = allFallbackComparisons.filter(row => row.covered);
+      const apiOutliers = apiCovered.filter(row => !row.ok);
+      const apiUnmatchedKeys = allFallbackComparisons.filter(row => !row.covered).map(row => ({ station: row.station, mode: row.mode, label: row.label }));
       return {
         ok: rows.length > 0,
         count: rows.length,
@@ -110,10 +116,14 @@ try {
         })),
         finite: rows.every(row => Number.isFinite(row.lat) && Number.isFinite(row.lng)),
         fallbackComparisons,
-        fallbackMatchesOfficial: fallbackComparisons.length === requiredKeys.length && fallbackComparisons.every(row => row.ok)
+        fallbackMatchesOfficial: fallbackComparisons.length === requiredKeys.length && fallbackComparisons.every(row => row.ok),
+        allFallbackComparisons,
+        apiCoveredCount: apiCovered.length,
+        apiOutliers,
+        apiUnmatchedKeys
       };
     } catch (error) {
-      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, error: String(error) };
+      return { ok: false, count: 0, relevant: [], finite: false, fallbackComparisons: [], fallbackMatchesOfficial: false, allFallbackComparisons: [], apiCoveredCount: 0, apiOutliers: [], apiUnmatchedKeys: [], error: String(error) };
     }
   });
   console.log('Official IBB station registry diagnostic: ' + JSON.stringify(gpsRegistryAudit));
