@@ -106,6 +106,18 @@ if (regression) {
     check('business gap probes are explicitly marked', regression.locations.filter(place => place.source === 'business-directory-not-in-catalog').length === 4);
     const businessGaps = regression.locations.filter(place => place.source === 'business-directory-not-in-catalog');
     check('business gap probes have an address and coordinate provenance', businessGaps.every(place => typeof place.address === 'string' && place.address.length > 10 && Number.isFinite(place.lat) && Number.isFinite(place.lng) && Array.isArray(place.sources) && place.sources.length > 0 && typeof place.coordinateStatus === 'string'));
+    const expectedIntegratedBusinessIds = ['four_seasons_sultanahmet', 'karakoy_lokantasi', 'ciya_sofrasi'];
+    check('verified business records are integrated into the production catalogue', expectedIntegratedBusinessIds.every(id => catalogById.has(id)));
+    check('integrated business coordinates exactly match sourced fixtures', expectedIntegratedBusinessIds.every(id => {
+      const current = catalogById.get(id), fixture = regression.locations.find(place => place.id === id);
+      return !!current && !!fixture && current.lat === fixture.lat && current.lng === fixture.lng && current.name === fixture.name;
+    }));
+    check('approximate Faros coordinates remain excluded from production catalogue', !catalogById.has('faros_karakoy'));
+    const selectionStart = html.slice(html.indexOf('function selectStart(id)'), html.indexOf('function newRoute()', html.indexOf('function selectStart(id)')));
+    const selectionTarget = html.slice(html.indexOf('function selectDestination(id)'), html.indexOf('function selectTargetStation(id)', html.indexOf('function selectDestination(id)')));
+    check('start selection hands canonical catalogue record to router state', selectionStart.includes('start=nextStart') && selectionStart.includes('lat') === false);
+    check('destination selection resolves a canonical catalogue record before routing', selectionTarget.includes('const target=places.find(p=>p.id===id)') && selectionTarget.includes('selectedTarget=target') && selectionTarget.includes('buildRouteToTarget(target)'));
+
   }
 }
 
