@@ -75,6 +75,39 @@ try {
   }
   record('40 route fixtures loaded', cases.routeCases.length === 40, 'count='+cases.routeCases.length);
 
+  const accessAudit = await page.evaluate(() => {
+    const gps = typeof staticGpsStationCoordinates === 'function' ? staticGpsStationCoordinates() : [];
+    const exits = Object.values(stationExitRegistry || {}).flatMap(x => x.exits || []);
+    const fake = [['pendik','pendik','M4 Metro',''],['pendik','pendik','Marmaray','']];
+    const real = [['ayrilik','ayrilik','M4 Metro',''],['ayrilik','ayrilik','Marmaray','']];
+    return {
+      gpsOk: gps.length >= 10 && gps.every(x => Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lng))) && gps.some(x => x.station === 'pendik' && x.mode === 'M4 Metro'),
+      exitsOk: exits.length > 0 && exits.every(x => x.no !== undefined && !!x.name),
+      transferGuardOk: hasVerifiedTransitTransfers(fake) === false && hasVerifiedTransitTransfers(real) === true,
+      falseWalkGuardOk: !Number.isFinite(Number(touristWalkTime('uskudar','anadolu_hisari'))) && !Number.isFinite(Number(lastMileWalkMinutes.anadolu_hisari))
+    };
+  });
+  record('GPS station coordinates have valid values', accessAudit.gpsOk);
+  record('station exit registry entries have names and IDs', accessAudit.exitsOk);
+  record('unverified same-node transfer is blocked', accessAudit.transferGuardOk);
+  record('unverified short walking link is not invented', accessAudit.falseWalkGuardOk);
+
+  // Exercise browser geolocation permission with a deterministic mock near Pendik M4.
+  const gpsContext = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'], geolocation: { latitude: 40.88839, longitude: 29.23817, accuracy: 20 } });
+  try {
+    const gpsPage = await gpsContext.newPage();
+    await gpsPage.route('**/GetStations', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+    await gpsPage.goto('http://127.0.0.1:4173/index.html?qa=gps', { waitUntil: 'domcontentloaded' });
+    await gpsPage.locator('#useCurrentLocationBtn').click();
+    await gpsPage.waitForFunction(() => (typeof start !== 'undefined' && start?.isCurrentLocation === true) || (document.getElementById('locationStatus')?.textContent || '').includes('15 dakika yürüme'), { timeout: 12000 });
+    const gpsState = await gpsPage.evaluate(() => ({ selected: start?.isCurrentLocation === true, lat: currentLocation?.lat, lng: currentLocation?.lng, station: currentLocationStation?.station, status: document.getElementById('locationStatus')?.textContent || '' }));
+    record('GPS permission flow accepts browser geolocation and selects current location', gpsState.selected && Math.abs(gpsState.lat - 40.88839) < 0.001 && Math.abs(gpsState.lng - 29.23817) < 0.001, JSON.stringify(gpsState));
+  } catch (error) {
+    record('GPS permission flow browser smoke test', false, error.message);
+  } finally {
+    await gpsContext.close();
+  }
+
   // Panels/tabs should remain clickable on a narrow viewport.
   for (const [id,panelId,label] of [
     ['cityExploreTab','cityExplorePanel','city exploration panel'],
@@ -89,7 +122,7 @@ try {
 
   // Verify service-worker install, core cache population and offline navigation.
   const sw = read('sw.js');
-  record('versioned PWA cache includes QA fixtures', /itp-v230\\.12\\.19-core/.test(sw) && sw.includes('./qa/location-regression-cases.json') && sw.includes('./qa.html'));
+  record('versioned PWA cache includes QA fixtures', sw.includes("itp-v230.12.19-core") && sw.includes('./qa/location-regression-cases.json') && sw.includes('./qa.html'));
   const offlineContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
     const offlinePage = await offlineContext.newPage();
