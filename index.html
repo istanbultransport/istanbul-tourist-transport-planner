@@ -3,14 +3,14 @@
 <html lang="tr"><head>
 <!-- V188 universal place access layer: Florya Akvaryum Marmaray, 5 min walk, alternatives --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="build-id" content="V230.12.25-GPS-ROUTE-SCORING">
+<meta name="build-id" content="V230.12.26-GPS-ROUTE-SCORING">
 <meta name="theme-color" content="#10243b">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>Istanbul Tourist Transport Planner — V230.12.19</title>
 <script>
 (function(){
-  window.__APP_BUILD_ID__='V230.12.25-GPS-ROUTE-SCORING';
+  window.__APP_BUILD_ID__='V230.12.26-GPS-ROUTE-SCORING';
   try{
     if('serviceWorker' in navigator){
       window.addEventListener('load',function(){
@@ -4777,16 +4777,16 @@ function staticGpsStationCoordinates(){
     {station:'arnavutkoy_hastane',mode:'M11 Metro',label:'Arnavutköy Hastane M11',lat:41.17929,lng:28.74774}
   ];
 }
-function resolveCurrentLocationStation(stationsOverride=null){
+function resolveCurrentLocationStation(stationsOverride=null,location=currentLocation){
   const stations=Array.isArray(stationsOverride)&&stationsOverride.length ? stationsOverride : gpsStationCoordinates();
-  if(!stations.length || !currentLocation) return null;
+  if(!stations.length || !location) return null;
   // Never turn a poor browser/desktop geolocation fix into a confident rail
   // station selection. A stale/low-quality position can otherwise make the
   // app appear to place the user in a completely different part of Istanbul.
-  if(Number.isFinite(Number(currentLocation.accuracy)) && Number(currentLocation.accuracy)>1000) return null;
+  if(Number.isFinite(Number(location.accuracy)) && Number(location.accuracy)>1000) return null;
   let best=null;
   for(const st of stations){
-    const d=gpsDistanceKm(currentLocation,st);
+    const d=gpsDistanceKm(location,st);
     if(!best||d<best.distanceKm) best={...st,distanceKm:d};
   }
   if(!best) return null;
@@ -5488,16 +5488,17 @@ async function v23012_6GpsBoardingPresentationQA(){
   const out={status:'PASS',tests:[],failures:[]};
   const add=(id,ok,detail)=>{out.tests.push({id,status:ok?'PASS':'FAIL',detail});if(!ok)out.failures.push({id,detail});};
   const fake={lat:40.88550,lng:29.23950};
+  const nearest=resolveCurrentLocationStation(null,fake);
   const target=places.find(p=>p.id==='istanbul-airport');
   if(!target){add('airport-target',false,'Istanbul Airport target missing');out.status='FAIL';return out;}
   const access=await buildAdaptiveStartAccess('current_location',target,fake);
   add('adaptive-boarding-selection',access?.station==='pendik'&&access?.mode==='Marmaray',access&&{station:access.station,mode:access.mode,walkMinutes:access.walkMinutes,preference:access.boardingPreference});
-  // GPS routing may intentionally choose the boarding corridor rather than
-  // the geometrically nearest line. The presentation must match that choice.
+  // The closest line and the best first boarding are separate concepts:
+  // Pendik M4 is geometrically nearest, while this route may board Marmaray.
   add('nearest-vs-boarding-separation',
-    resolveCurrentLocationStation()?.station===access?.station &&
-    resolveCurrentLocationStation()?.mode===access?.mode,
-    resolveCurrentLocationStation());
+    nearest?.station==='pendik' && nearest?.mode==='M4 Metro' &&
+    access?.station==='pendik' && access?.mode==='Marmaray',
+    {nearest,boarding:{station:access?.station,mode:access?.mode}});
   const path=access?.path||minimumRailRoute('pendik',target.id,4,null,'Marmaray');
   add('boarding-route-honors-marmaray',!!path&&routeHonorsStartMode(path,'Marmaray'),path&&firstTransitJourneyMode(path));
   add('boarding-first-transit-marmaray',!!path&&firstTransitJourneyMode(path)?.mode==='Marmaray',path&&firstTransitJourneyMode(path));
