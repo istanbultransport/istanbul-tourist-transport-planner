@@ -5949,4 +5949,57 @@ function v227WalkingNavigationQA(){
   return result;
 }
 </script>
+
+<script>
+/* V230.12.12 UI recovery: keep primary navigation usable if an earlier initializer aborts. */
+(function(){
+  function recoverUI(){
+    try {
+      if(typeof render==='function') render();
+    } catch(err) {
+      console.error('[ITP UI recovery] Initial render failed:',err);
+      var listEl=document.getElementById('list');
+      if(listEl && !listEl.innerHTML.trim()) {
+        listEl.innerHTML='<div role="alert" style="margin-top:14px;padding:14px;border:1px solid #f0b4b4;border-radius:12px;background:#fff5f5;color:#8b1e1e">Konum kartları yüklenemedi. Arayüz başlatılırken hata oluştu.</div>';
+      }
+    }
+    document.querySelectorAll('.filter').forEach(function(btn){
+      btn.onclick=function(){
+        try {
+          if(typeof closeInfoPanels==='function') closeInfoPanels();
+          document.querySelectorAll('.filter').forEach(function(b){b.classList.remove('active');});
+          btn.classList.add('active');
+          if(typeof filter!=='undefined') filter=btn.dataset.filter||'Tümü';
+          if(typeof render==='function') render();
+        } catch(err){ console.error('[ITP UI recovery] Filter click failed:',err); }
+      };
+    });
+    var cityTab=document.getElementById('cityExploreTab');
+    var cityPanel=document.getElementById('cityExplorePanel');
+    var ticketTab=document.getElementById('ticketHelpTab');
+    var ticketPanel=document.getElementById('ticketHelpPanel');
+    if(cityTab && cityPanel) cityTab.onclick=function(){
+      var open=!cityPanel.classList.contains('open');
+      cityPanel.classList.toggle('open',open); cityPanel.setAttribute('aria-hidden',String(!open));
+      cityTab.classList.toggle('active',open);
+      if(ticketPanel){ticketPanel.classList.remove('open');ticketPanel.setAttribute('aria-hidden','true');}
+      if(ticketTab) ticketTab.classList.remove('active');
+      if(open){document.querySelectorAll('.discover-tab').forEach(function(b){b.classList.remove('active');});var dl=document.getElementById('discoverList');if(dl)dl.innerHTML='<div class="discover-hint">Bir kategori seçerek içindeki yerleri görüntüleyebilirsin.</div>';}
+    };
+    if(ticketTab && ticketPanel) ticketTab.onclick=function(){
+      var open=!ticketPanel.classList.contains('open');
+      ticketPanel.classList.toggle('open',open);ticketPanel.setAttribute('aria-hidden',String(!open));ticketTab.classList.toggle('active',open);
+      if(cityPanel){cityPanel.classList.remove('open');cityPanel.setAttribute('aria-hidden','true');}
+      if(cityTab) cityTab.classList.remove('active');
+    };
+    document.querySelectorAll('.discover-tab').forEach(function(btn){
+      btn.onclick=function(){try{if(typeof renderDiscover==='function')renderDiscover(btn.dataset.discover);}catch(err){console.error('[ITP UI recovery] Discover tab failed:',err);}};
+    });
+    var mapTab=document.getElementById('transportMapTab');
+    if(mapTab && typeof openTransportMap==='function') mapTab.onclick=openTransportMap;
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',recoverUI,{once:true});
+  else recoverUI();
+})();
+</script>
 </body></html>
