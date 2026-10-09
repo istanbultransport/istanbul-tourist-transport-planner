@@ -53,6 +53,29 @@ try {
   record('origin ID and coordinates preserved through UI selection', selected.start.id === 'kadikoy_carsi' && Number.isFinite(selected.start.lat) && Number.isFinite(selected.start.lng), JSON.stringify(selected.start));
   record('target ID and coordinates preserved through UI selection', selected.target.id === 'ciya_sofrasi' && Number.isFinite(selected.target.lat) && Number.isFinite(selected.target.lng), JSON.stringify(selected.target));
   record('route output shown after destination click', selected.routeVisible);
+
+  // Responsive acceptance matrix: run the real selected-route screen at common
+  // narrow phone, standard phone, tablet and desktop viewport widths.
+  for (const viewport of [
+    { width: 320, height: 720, label: 'small phone' },
+    { width: 360, height: 800, label: 'Android phone' },
+    { width: 390, height: 844, label: 'iPhone-sized phone' },
+    { width: 768, height: 1024, label: 'tablet' },
+    { width: 1024, height: 768, label: 'small laptop' },
+    { width: 1365, height: 900, label: 'desktop' }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const layout = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+      routeVisible: getComputedStyle(document.getElementById('route')).display !== 'none'
+    }));
+    record('responsive layout '+viewport.label+' ('+viewport.width+'px)',
+      layout.document <= layout.viewport + 1 && layout.body <= layout.viewport + 1 && layout.routeVisible,
+      JSON.stringify(layout));
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'browser-qa-mobile.png', fullPage: true });
   record('no uncaught browser console errors', consoleErrors.length === 0, consoleErrors.slice(0, 5).join(' | '));
 
